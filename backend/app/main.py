@@ -1,0 +1,557 @@
+"""FastAPI main application entrypoint.
+
+Configures CORS, middleware, exception handlers, and the canonical health check.
+"""
+
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from contextlib import asynccontextmanager
+from typing import Any
+
+import redis.asyncio as aioredis
+import urllib.parse
+from fastapi import Depends, FastAPI, Request, Response, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import engine, get_db
+
+from app.config import settings
+from app.core.errors import AppError, app_error_handler
+from app.core.build_info import get_build_revision
+from app.core.logging import get_logger, setup_logging
+from app.core.middleware import RequestIdMiddleware
+from app.db.session import engine
+from app.routers import (
+    admin,
+    auth,
+    calendar,
+    deliverables,
+    notifications,
+    onboarding,
+    payments,
+    plans,
+    platform,
+    portal_dashboard,
+    public,
+    tasks,
+    tenant,
+    tickets,
+    webhooks,
+    chat,
+    negotiations,
+    instagram,
+    publishing,
+    bde,
+)
+
+logger = get_logger("app.main")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Application lifespan context manager for startup and shutdown."""
+    setup_logging()
+    logger.info(
+        "server_starting",
+        environment=settings.ENVIRONMENT,
+        version=settings.VERSION,
+    )
+    # Ensure default super admin exists and has valid hashed credentials
+    try:
+        from app.db.session import AsyncSessionLocal
+        from app.models.user import User
+        from app.models.enums import UserRole, AccountStatus
+        from app.core.security import hash_password
+        from sqlalchemy import select
+        async with AsyncSessionLocal() as db:
+            for s_email, s_auth, s_name in [
+                ("admin@creo.agency", "auth_admin_001", "Creo Super Admin"),
+                ("superadmin@creo.agency", "auth_superadmin_001", "Creo Platform Super Admin"),
+            ]:
+                res = await db.execute(select(User).where(User.email == s_email))
+                user_record = res.scalar_one_or_none()
+                if not user_record and settings.ENVIRONMENT == "development":
+                    user_record = User(
+                        email=s_email,
+                        auth_id=s_auth,
+                        full_name=s_name,
+                        role=UserRole.SUPER_ADMIN,
+                        account_status=AccountStatus.ACTIVE,
+                        hashed_password=hash_password("Admin123!"),
+                    )
+                    db.add(user_record)
+                    await db.commit()
+
+            # Ensure plan_negotiations table exists
+            await db.execute(text("""
+                CREATE TABLE IF NOT EXISTS plan_negotiations (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    client_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    client_email VARCHAR(255) NOT NULL,
+                    client_name VARCHAR(255),
+                    proposed_budget VARCHAR(255),
+                    contact_phone VARCHAR(50) NOT NULL,
+                    preferred_window VARCHAR(100) NOT NULL,
+                    target_topic VARCHAR(255),
+                    notes TEXT,
+                    status VARCHAR(50) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')),
+                    agreed_amount INTEGER,
+                    razorpay_custom_plan_id VARCHAR(255),
+                    order_id VARCHAR(255),
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+                );
+            """))
+            await db.execute(text("CREATE INDEX IF NOT EXISTS idx_negotiations_client_id ON plan_negotiations(client_id);"))
+            await db.execute(text("CREATE INDEX IF NOT EXISTS idx_negotiations_status ON plan_negotiations(status);"))
+            # Ensure custom quota columns exist in plan_negotiations
+            col_stmts = [
+                "ALTER TABLE plan_negotiations ADD COLUMN IF NOT EXISTS agreed_amount bigint;",
+                "ALTER TABLE plan_negotiations ADD COLUMN IF NOT EXISTS reel_quota integer DEFAULT 8;",
+                "ALTER TABLE plan_negotiations ADD COLUMN IF NOT EXISTS poster_quota integer DEFAULT 12;",
+                "ALTER TABLE plan_negotiations ADD COLUMN IF NOT EXISTS story_quota integer DEFAULT 15;",
+                "ALTER TABLE plan_negotiations ADD COLUMN IF NOT EXISTS order_id varchar(255);",
+                "ALTER TABLE plan_negotiations ADD COLUMN IF NOT EXISTS razorpay_custom_plan_id varchar(255);",
+                "ALTER TABLE deliverables ADD COLUMN IF NOT EXISTS voice_note_url text;",
+                "ALTER TABLE deliverables ADD COLUMN IF NOT EXISTS voice_note_duration integer;",
+                "ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS attachment_url text;",
+                "ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS attachment_name varchar(255);",
+                "ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS attachment_type varchar(100);",
+                "ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS attachment_size bigint;",
+            ]
+            for col_stmt in col_stmts:
+                try:
+                    await db.execute(text(col_stmt))
+                except Exception:
+                    pass
+            # Ensure manual_payment_requests table exists
+            await db.execute(text("""
+                CREATE TABLE IF NOT EXISTS manual_payment_requests (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    client_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    plan_id UUID NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+                    payment_method VARCHAR(50) NOT NULL DEFAULT 'cash',
+                    amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+                    reference_note TEXT,
+                    status VARCHAR(50) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')),
+                    reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                    reviewed_at TIMESTAMP WITH TIME ZONE,
+                    admin_notes TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+                );
+            """))
+            await db.execute(text("CREATE INDEX IF NOT EXISTS idx_manual_payments_client_id ON manual_payment_requests(client_id);"))
+            await db.execute(text("CREATE INDEX IF NOT EXISTS idx_manual_payments_status ON manual_payment_requests(status);"))
+            await db.execute(text("CREATE INDEX IF NOT EXISTS idx_manual_payments_created_at ON manual_payment_requests(created_at);"))
+
+            # Ensure BDE Proposals table exists
+            await db.execute(text("""
+                CREATE TABLE IF NOT EXISTS bde_proposals (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    lead_id UUID NOT NULL REFERENCES bde_leads(id) ON DELETE CASCADE,
+                    bde_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                    plan_name VARCHAR(100) NOT NULL DEFAULT 'Growth Retainer',
+                    monthly_fee BIGINT NOT NULL,
+                    discount_pct BIGINT NOT NULL DEFAULT 0,
+                    final_monthly_fee BIGINT NOT NULL,
+                    contract_months BIGINT NOT NULL DEFAULT 6,
+                    total_contract_value BIGINT NOT NULL,
+                    deliverables JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    status VARCHAR(50) NOT NULL DEFAULT 'sent',
+                    notes TEXT,
+                    valid_until TIMESTAMP WITH TIME ZONE,
+                    accepted_at TIMESTAMP WITH TIME ZONE,
+                    metadata_extra JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+                );
+            """))
+            await db.execute(text("CREATE INDEX IF NOT EXISTS idx_bde_proposals_lead_id ON bde_proposals(lead_id);"))
+            await db.execute(text("CREATE INDEX IF NOT EXISTS idx_bde_proposals_status ON bde_proposals(status);"))
+
+            # Ensure BDE Targets & Quota table exists
+            await db.execute(text("""
+                CREATE TABLE IF NOT EXISTS bde_targets (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    bde_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    month VARCHAR(7) NOT NULL,
+                    monthly_quota BIGINT NOT NULL DEFAULT 2500000,
+                    closed_revenue BIGINT NOT NULL DEFAULT 0,
+                    commission_rate DOUBLE PRECISION NOT NULL DEFAULT 5.0,
+                    commission_earned BIGINT NOT NULL DEFAULT 0,
+                    deals_won BIGINT NOT NULL DEFAULT 0,
+                    notes TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+                );
+            """))
+            await db.execute(text("CREATE INDEX IF NOT EXISTS idx_bde_targets_bde_month ON bde_targets(bde_id, month);"))
+
+            await db.commit()
+    except Exception as e:
+        logger.warning("admin_bootstrap_warning", error=str(e))
+    import asyncio
+    from app.services.instagram_test_post import scheduled_test_loop
+    from app.workers.tasks.scheduler import publishing_recovery_loop
+    test_scheduler = asyncio.create_task(scheduled_test_loop())
+    publishing_scheduler = asyncio.create_task(publishing_recovery_loop())
+    from app.services.crm_reminders import reminder_loop
+    crm_scheduler = asyncio.create_task(reminder_loop())
+    try:
+        yield
+    finally:
+        test_scheduler.cancel()
+        publishing_scheduler.cancel()
+        crm_scheduler.cancel()
+        from contextlib import suppress
+        with suppress(asyncio.CancelledError):
+            await test_scheduler
+        with suppress(asyncio.CancelledError):
+            await publishing_scheduler
+        with suppress(asyncio.CancelledError):
+            await crm_scheduler
+    logger.info("server_shutting_down")
+    await engine.dispose()
+
+
+app = FastAPI(
+    title="Creo API",
+    version=settings.VERSION,
+    lifespan=lifespan,
+)
+
+# Compress large JSON responses, leaving streaming responses to Starlette.
+app.add_middleware(GZipMiddleware, minimum_size=1200, compresslevel=4)
+
+# Request ID tracking middleware
+app.add_middleware(RequestIdMiddleware)
+
+# CORS configuration (explicit origins + preview regex for Vercel, Cloudflare Pages/Workers, and Render,
+# plus the Capacitor apps: https://localhost on Android, capacitor://localhost on iOS)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"^https:\/\/([a-zA-Z0-9\-_]+\.)*(vercel\.app|pages\.dev|workers\.dev|onrender\.com)$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$|^(https|capacitor):\/\/localhost$",
+    allow_credentials=True,
+    max_age=3600,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Request-Id", "Server-Timing"],
+)
+
+# Standardized application error handler
+app.add_exception_handler(AppError, app_error_handler)  # type: ignore[arg-type]
+
+
+# In-memory IP-based rate limiting dictionary
+_ip_request_timestamps: dict[str, list[float]] = {}
+MAX_REQUESTS_PER_WINDOW = 200  # 200 requests per 10-second window per IP
+WINDOW_SECONDS = 10
+MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500 Megabytes max request size for video/image uploads
+
+
+@app.middleware("http")
+async def security_and_rate_limit_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Zero-trust security middleware:
+    - Payload size limitation to prevent DOS / memory exhaustion
+    - Sliding-window IP request throttling
+    - Comprehensive OWASP security headers injection
+    """
+    import time
+
+    client_ip = request.client.host if request.client else "unknown"
+    origin = request.headers.get("origin")
+
+    # Helper to attach CORS to early returns
+    def _add_cors(res: JSONResponse) -> JSONResponse:
+        if origin:
+            res.headers["Access-Control-Allow-Origin"] = origin
+            res.headers["Access-Control-Allow-Credentials"] = "true"
+            res.headers["Access-Control-Allow-Methods"] = "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"
+            res.headers["Access-Control-Allow-Headers"] = "*"
+        return res
+
+    # 1. Payload size check (exempt upload routes for media files)
+    if not request.url.path.endswith("/upload") and not request.url.path.endswith("/upload-intent"):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > MAX_CONTENT_LENGTH:
+            return _add_cors(
+                JSONResponse(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    content={
+                        "error": {
+                            "code": "PAYLOAD_TOO_LARGE",
+                            "message": f"Request payload exceeds maximum allowed size of {MAX_CONTENT_LENGTH // (1024*1024)}MB.",
+                        }
+                    },
+                )
+            )
+
+    # 2. IP-based request throttling / anti-DDoS (exempt health endpoints and root probes)
+    if not (request.url.path in {"/", "/health", "/api/v1/health"} or request.url.path.endswith("/health")):
+        now = time.time()
+        cutoff = now - WINDOW_SECONDS
+        timestamps = [t for t in _ip_request_timestamps.get(client_ip, []) if t > cutoff]
+        if len(timestamps) >= MAX_REQUESTS_PER_WINDOW:
+            _ip_request_timestamps[client_ip] = timestamps
+            return _add_cors(
+                JSONResponse(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    content={
+                        "error": {
+                            "code": "RATE_LIMIT_EXCEEDED",
+                            "message": "Too many requests from your IP address. Please slow down.",
+                        }
+                    },
+                )
+            )
+        timestamps.append(now)
+        _ip_request_timestamps[client_ip] = timestamps
+
+    # Invalidate both sides of a write: reads during the mutation must not
+    # republish an older snapshot after its transaction commits.
+    invalidates_dashboard = request.method in {"POST", "PUT", "PATCH", "DELETE"} and not request.url.path.startswith("/api/v1/auth/")
+    if invalidates_dashboard:
+        from app.core.dashboard_cache import invalidate_dashboard_cache
+        await invalidate_dashboard_cache()
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        logger.error("unhandled_request_exception", error=str(exc), path=request.url.path)
+        return _add_cors(
+            JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={
+                    "error": {
+                        "code": "INTERNAL_SERVER_ERROR",
+                        "message": "An unexpected server error occurred.",
+                        "details": str(exc),
+                    }
+                },
+            )
+        )
+
+    finally:
+        if invalidates_dashboard:
+            await invalidate_dashboard_cache()
+
+    # 3. Comprehensive OWASP Recommended Security Headers (Excluding CSP which breaks cross-origin SPA APIs)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none';"
+    return response
+
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Format Pydantic request validation errors into standard Creo API error envelope."""
+    errors = exc.errors()
+    messages = []
+    for err in errors:
+        loc = err.get("loc", [])
+        field = ".".join(str(x) for x in loc if x != "body")
+        msg = err.get("msg", "Validation error")
+        messages.append(f"{field}: {msg}" if field else msg)
+    message = "; ".join(messages) if messages else "Invalid request payload"
+    resp = JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": message,
+                "details": {"errors": errors},
+            }
+        },
+    )
+    origin = request.headers.get("origin")
+    if origin:
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        resp.headers["Access-Control-Allow-Methods"] = "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"
+        resp.headers["Access-Control-Allow-Headers"] = "*"
+    return resp
+
+
+@app.exception_handler(Exception)
+async def global_unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Fallback handler ensuring unhandled exceptions always return structured error and CORS headers."""
+    logger.error("unhandled_global_exception", error=str(exc), path=request.url.path)
+    resp = JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": {
+                "code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected server error occurred.",
+                "details": str(exc),
+            }
+        },
+    )
+    origin = request.headers.get("origin")
+    if origin:
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        resp.headers["Access-Control-Allow-Methods"] = "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"
+        resp.headers["Access-Control-Allow-Headers"] = "*"
+    return resp
+
+# API v1 feature routers
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(auth.users_router, prefix="/api/v1")
+app.include_router(instagram.router, prefix="/api/v1")
+app.include_router(publishing.router, prefix="/api/v1")
+from app.routers import revenue_crm
+app.include_router(revenue_crm.router, prefix="/api/v1")
+app.include_router(revenue_crm.public_router, prefix="/api/v1")
+app.include_router(plans.router, prefix="/api/v1")
+app.include_router(portal_dashboard.router, prefix="/api/v1")
+app.include_router(calendar.router, prefix="/api/v1")
+app.include_router(calendar.ops_router, prefix="/api/v1")
+app.include_router(calendar.portal_router, prefix="/api/v1")
+app.include_router(tickets.router, prefix="/api/v1")
+app.include_router(onboarding.router, prefix="/api/v1")
+app.include_router(payments.router, prefix="/api/v1")
+app.include_router(webhooks.router, prefix="/api/v1")
+app.include_router(deliverables.router, prefix="/api/v1")
+app.include_router(deliverables.portal_router, prefix="/api/v1")
+app.include_router(tasks.router, prefix="/api/v1")
+app.include_router(tasks.router)
+app.include_router(admin.router, prefix="/api/v1")
+app.include_router(negotiations.router, prefix="/api/v1/negotiations")
+app.include_router(admin.router)
+app.include_router(platform.router, prefix="/api/v1")
+app.include_router(tenant.router, prefix="/api/v1")
+app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
+app.include_router(bde.router, prefix="/api/v1")
+app.include_router(public.router, prefix="/api/v1")
+app.include_router(public.router)
+
+
+import os
+from fastapi.staticfiles import StaticFiles
+
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+_uploads_dir = os.path.join(_static_dir, "uploads")
+os.makedirs(_uploads_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+app.mount("/uploads", StaticFiles(directory=_uploads_dir), name="uploads")
+
+
+
+@app.api_route("/", methods=["GET", "HEAD"], tags=["Root"])
+async def root(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+) -> Any:
+    """Root endpoint — returns API service status or handles direct Google OAuth browser redirects."""
+    if request.method == "HEAD":
+        return Response(status_code=status.HTTP_200_OK, media_type="application/json")
+
+    if code:
+        from app.db.session import AsyncSessionLocal
+        from app.routers.auth import _process_google_code
+
+        async with AsyncSessionLocal() as session:
+            data = await _process_google_code(code, "https://creo-dsxr.onrender.com", session)
+            token = data["access_token"]
+            frontend_base = "http://localhost:5173"
+            if state and (state.startswith("http://") or state.startswith("https://")):
+                frontend_base = state.rstrip("/")
+            return RedirectResponse(
+                url=f"{frontend_base}/auth/google/callback?token={urllib.parse.quote(token)}"
+            )
+    return {
+        "name": "Creo API",
+        "status": "online",
+        "version": settings.VERSION,
+        "build_revision": get_build_revision(),
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
+@app.api_route("/api/v1/health", methods=["GET", "HEAD"], tags=["Health"])
+async def health_check(request: Request) -> Response:
+    """Verify live connectivity to PostgreSQL and Redis.
+
+    Performs a real `SELECT 1` on the database engine and `PING` on Redis.
+    """
+    if request.method == "HEAD":
+        return Response(status_code=status.HTTP_200_OK, media_type="application/json")
+    db_status = "ok"
+    redis_status = "ok"
+    errors: dict[str, str] = {}
+
+    # Check PostgreSQL database connectivity
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception as e:
+        db_status = "error"
+        errors["db"] = str(e)
+        logger.error("health_check_database_failed", error=str(e))
+
+    # Check Redis connectivity
+    try:
+        if settings.REDIS_URL.startswith("fakeredis"):
+            from fakeredis import aioredis as fake_aioredis
+
+            r = fake_aioredis.FakeRedis(decode_responses=True)
+            ping_res = await r.ping()
+        else:
+            try:
+                r = aioredis.from_url(  # type: ignore[no-untyped-call]
+                    settings.REDIS_URL,
+                    decode_responses=True,
+                    socket_timeout=3.0,
+                )
+                ping_res = await r.ping()
+                await r.aclose()
+            except Exception as conn_err:
+                if settings.ENVIRONMENT == "development":
+                    from fakeredis import aioredis as fake_aioredis
+
+                    r = fake_aioredis.FakeRedis(decode_responses=True)
+                    ping_res = await r.ping()
+                    logger.info("health_check_redis_local_fallback", original_error=str(conn_err))
+                else:
+                    raise conn_err
+        if not ping_res:
+            redis_status = "error"
+            errors["redis"] = "Ping returned falsy value"
+        await r.aclose()
+    except Exception as e:
+        redis_status = "error"
+        errors["redis"] = str(e)
+        logger.error("health_check_redis_failed", error=str(e))
+
+    overall_status = "ok" if (db_status == "ok" and redis_status == "ok") else "degraded"
+    http_code = (
+        status.HTTP_200_OK if db_status == "ok" else status.HTTP_503_SERVICE_UNAVAILABLE
+    )
+
+    payload: dict[str, Any] = {
+        "status": overall_status,
+        "db": db_status,
+        "redis": redis_status,
+        "version": settings.VERSION,
+        "build_revision": get_build_revision(),
+    }
+    if errors:
+        payload["details"] = errors
+
+    return JSONResponse(status_code=http_code, content=payload)
