@@ -1,8 +1,10 @@
 // Taps through the main admin flows the way a person would.
 import 'package:creo_admin/data.dart';
 import 'package:creo_admin/main.dart';
+import 'package:creo_admin/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> tapText(WidgetTester t, String text) async {
   final f = find.text(text).last;
@@ -149,5 +151,30 @@ void main() {
     await tapText(t, 'Wrong logo');
     await tapText(t, 'Close ticket');
     expect(openTickets, isEmpty);
+  });
+
+  testWidgets('theme switch goes light and back to dark, and is saved', (t) async {
+    SharedPreferences.setMockInitialValues({});
+    await t.pumpWidget(const CreoAdmin());
+    await t.pumpAndSettle();
+    Color ground() => t.widget<Scaffold>(find.byType(Scaffold).first).backgroundColor ?? Theme.of(t.element(find.byType(Scaffold).first)).scaffoldBackgroundColor;
+    expect(ground(), const Color(0xFF0A0908));
+    Finder wave() => find.descendant(of: find.byType(ClipPath), matching: find.byType(RawImage));
+    await t.tap(find.byTooltip('Light mode'));
+    await t.runAsync(() => Future.delayed(const Duration(milliseconds: 100)));
+    await t.pump(const Duration(milliseconds: 400));
+    expect(wave(), findsOneWidget);
+    await t.pumpAndSettle();
+    expect(wave(), findsNothing);
+    expect(lightMode.value, isTrue);
+    expect(ground(), const Color(0xFFE9DFCF));
+    expect((await SharedPreferences.getInstance()).getBool('light'), isTrue);
+    lightMode.value = false;
+    await loadTheme();
+    expect(lightMode.value, isTrue);
+    await t.tap(find.byTooltip('Dark mode'));
+    await t.pumpAndSettle();
+    expect(lightMode.value, isFalse);
+    expect(ground(), const Color(0xFF0A0908));
   });
 }

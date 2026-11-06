@@ -79,7 +79,7 @@ class _ThreadState extends State<_Thread> {
                       onSubmitted: (_) => send(),
                       decoration: const InputDecoration(
                           hintText: 'Type a message', border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(999)), borderSide: BorderSide.none)))),
-              IconButton(tooltip: 'Send', onPressed: send, icon: const Icon(Icons.send, color: C.accent)),
+              IconButton(tooltip: 'Send', onPressed: send, icon: Icon(Icons.send, color: C.accent)),
             ]),
           ),
         ),

@@ -1,3 +1,4 @@
+import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 
 import 'content.dart';
@@ -8,7 +9,11 @@ import 'profile.dart';
 import 'team.dart';
 import 'ui.dart';
 
-void main() => runApp(const CreoAdmin());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await loadTheme();
+  runApp(const CreoAdmin());
+}
 
 class CreoAdmin extends StatelessWidget {
   const CreoAdmin({super.key});
@@ -16,10 +21,16 @@ class CreoAdmin extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
         title: 'Creo admin',
         debugShowCheckedModeBanner: false,
+        // Let mouse drags scroll horizontal rows (chips, tab bars) on web, like touch does.
+        scrollBehavior: const MaterialScrollBehavior().copyWith(dragDevices: PointerDeviceKind.values.toSet()),
         theme: creoTheme(),
+        // Colours in [C] switch at once, so the theme must too; the wave in [ThemeWave] is the animation.
+        themeAnimationDuration: Duration.zero,
         // On a wide browser window, keep the phone layout centred.
-        builder: (_, child) => ColoredBox(
-            color: C.ground, child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 480), child: child))),
+        builder: (_, child) => ThemeWave(
+            key: waveKey,
+            child: ColoredBox(
+                color: C.ground, child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 480), child: child)))),
         home: const Shell(),
       );
 }
@@ -65,25 +76,36 @@ class _ShellState extends State<Shell> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 20,
-        shape: const Border(bottom: BorderSide(color: C.line)),
-        title: Row(children: [
-          Text.rich(TextSpan(children: [
-            TextSpan(text: 'creo', style: inter(22, w: FontWeight.w700)),
-            TextSpan(text: '.', style: inter(22, w: FontWeight.w700, c: C.accent)),
-          ])),
-          const SizedBox(width: 10),
-          Text('Admin', style: inter(14, w: FontWeight.w500, c: C.mist)),
-        ]),
+        shape: Border(bottom: BorderSide(color: C.line)),
+        // Scales down on narrow phones so the four header buttons always fit.
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text.rich(TextSpan(children: [
+              TextSpan(text: 'creo', style: inter(22, w: FontWeight.w700)),
+              TextSpan(text: '.', style: inter(22, w: FontWeight.w700, c: C.accent)),
+            ])),
+            const SizedBox(width: 10),
+            Text('Admin', style: inter(14, w: FontWeight.w500, c: C.mist)),
+          ]),
+        ),
         actions: [
           IconButton(
             tooltip: 'Things that need you',
             onPressed: () => go(0),
-            icon: Badge(isLabelVisible: decisionCount > 0, label: Text('$decisionCount'), child: const Icon(Icons.notifications_outlined, color: C.mist2)),
+            icon: Badge(isLabelVisible: decisionCount > 0, label: Text('$decisionCount'), child: Icon(Icons.notifications_outlined, color: C.mist2)),
+          ),
+          // Sun in dark mode, moon in light mode, like the website.
+          IconButton(
+            tooltip: lightMode.value ? 'Dark mode' : 'Light mode',
+            onPressed: toggleTheme,
+            icon: Icon(lightMode.value ? Icons.dark_mode_outlined : Icons.light_mode_outlined, color: C.mist2),
           ),
           IconButton(
             tooltip: 'Settings',
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const Settings())),
-            icon: const Icon(Icons.settings_outlined, color: C.mist2),
+            icon: Icon(Icons.settings_outlined, color: C.mist2),
           ),
           Padding(
             padding: const EdgeInsets.only(right: 12),

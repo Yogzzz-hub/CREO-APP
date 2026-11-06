@@ -1,45 +1,148 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data.dart';
 
-/// Creo palette, dark mode. Only these colours are used in the app.
-/// Contrast on [surface]: text 14.7:1, mist 7.7:1, accent 6.7:1, rose 6.4:1, peri 8.5:1.
-abstract final class C {
-  static const ground = Color(0xFF0A0908);
-  static const base = Color(0xFF0F0E0C);
-  static const surface = Color(0xFF1F1C19);
-  static const raised = Color(0xFF282420);
-  static const line = Color(0xFF3A342D);
-  static const text = Color(0xFFF5EEE3);
-  static const mist = Color(0xFFB9AD9C);
-  static const mist2 = Color(0xFFD6CBBB);
-  static const accent = Color(0xFFD2965A);
-  static const accent2 = Color(0xFFDDA56C);
-  static const onAccent = Color(0xFF1A120C);
-  static const peri = Color(0xFFA9B8D4);
-  static const rose = Color(0xFFD98A7A);
+/// Light or dark theme. Dark is the default, like the website. Saved under `light` so it survives a reload.
+final lightMode = ValueNotifier(false);
+
+Future<void> loadTheme() async => lightMode.value = (await SharedPreferences.getInstance()).getBool('light') ?? false;
+
+final waveKey = GlobalKey<ThemeWaveState>();
+
+/// Switch theme and rebuild every screen, including pages pushed on top, since they read [C] directly.
+Future<void> toggleTheme() async {
+  final wave = waveKey.currentState;
+  final old = await wave?.snapshot();
+  void mark(Element e) {
+    e.markNeedsBuild();
+    e.visitChildren(mark);
+  }
+
+  lightMode.value = !lightMode.value;
+  wave?.play(old);
+  WidgetsBinding.instance.rootElement?.visitChildren(mark);
+  (await SharedPreferences.getInstance()).setBool('light', lightMode.value);
 }
 
-TextStyle inter(double size, {FontWeight w = FontWeight.w400, Color c = C.text}) =>
+/// Theme change animation: a picture of the old theme slides off downwards behind a wavy edge,
+/// so the new theme fills the screen from top to bottom. Skipped when the phone asks for reduced motion.
+class ThemeWave extends StatefulWidget {
+  const ThemeWave({super.key, required this.child});
+  final Widget child;
+  @override
+  State<ThemeWave> createState() => ThemeWaveState();
+}
+
+class ThemeWaveState extends State<ThemeWave> with SingleTickerProviderStateMixin {
+  final _shot = GlobalKey();
+  late final _run = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+    ..addStatusListener((s) {
+      if (s == AnimationStatus.completed) setState(() => _old = null);
+    });
+  ui.Image? _old;
+
+  Future<ui.Image?> snapshot() async {
+    if (MediaQuery.disableAnimationsOf(context)) return null;
+    final box = _shot.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    return box?.toImage(pixelRatio: MediaQuery.devicePixelRatioOf(context));
+  }
+
+  void play(ui.Image? old) {
+    if (old == null) return;
+    _old?.dispose();
+    setState(() => _old = old);
+    _run.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _run.dispose();
+    _old?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(fit: StackFit.expand, children: [
+        RepaintBoundary(key: _shot, child: widget.child),
+        if (_old != null)
+          IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _run,
+              builder: (_, _) => ClipPath(
+                  clipper: _Wave(Curves.easeInOutCubic.transform(_run.value)), child: RawImage(image: _old, fit: BoxFit.fill)),
+            ),
+          ),
+      ]);
+}
+
+/// Keeps the part of the old picture below a sine wave whose line moves from above the top to below the bottom.
+class _Wave extends CustomClipper<Path> {
+  _Wave(this.t);
+  final double t;
+  @override
+  Path getClip(Size size) {
+    const a = 28.0;
+    double y(double x) => t * (size.height + 2 * a) - a + a * math.sin(x / size.width * 3 * math.pi + t * 4 * math.pi);
+    final path = Path()..moveTo(0, y(0));
+    for (var x = 0.0; x <= size.width; x += 6) {
+      path.lineTo(x, y(x));
+    }
+    return path
+      ..lineTo(size.width, y(size.width))
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(_Wave old) => old.t != t;
+}
+
+/// Creo palette, dark and light, taken from the website's theme. Only these colours are used in the app.
+/// Dark contrast on [surface]: text 14.7:1, mist 7.7:1, accent 6.7:1, rose 6.4:1, peri 8.5:1.
+abstract final class C {
+  static Color _p(int dark, int light) => Color(lightMode.value ? light : dark);
+  static Color get ground => _p(0xFF0A0908, 0xFFE9DFCF);
+  static Color get base => _p(0xFF0F0E0C, 0xFFF5EEE3);
+  static Color get surface => _p(0xFF1F1C19, 0xFFFBF7F0);
+  static Color get raised => _p(0xFF282420, 0xFFF2E9DC);
+  static Color get line => _p(0xFF3A342D, 0xFFD8C8B2);
+  static Color get text => _p(0xFFF5EEE3, 0xFF2B1E15);
+  static Color get mist => _p(0xFFB9AD9C, 0xFF6E5F50);
+  static Color get mist2 => _p(0xFFD6CBBB, 0xFF54473B);
+  static Color get accent => _p(0xFFD2965A, 0xFF7E5228);
+  static Color get accent2 => _p(0xFFDDA56C, 0xFF7E5228);
+  static Color get onAccent => _p(0xFF1A120C, 0xFFFBF7F0);
+  static Color get peri => _p(0xFFA9B8D4, 0xFF172338);
+  static Color get rose => _p(0xFFD98A7A, 0xFF9A3F2F);
+}
+
+TextStyle inter(double size, {FontWeight w = FontWeight.w400, Color? c}) =>
     TextStyle(
         fontFamily: 'Inter',
         fontSize: size,
         fontWeight: w,
         // Inter is a variable font: set the weight axis too so bold really renders bold.
         fontVariations: [FontVariation('wght', w.value.toDouble())],
-        color: c,
+        color: c ?? C.text,
         fontFeatures: const [FontFeature.tabularFigures()]);
 
 ThemeData creoTheme() {
-  final base = ThemeData(brightness: Brightness.dark, useMaterial3: true, fontFamily: 'Inter');
+  final dark = !lightMode.value;
+  final base = ThemeData(brightness: dark ? Brightness.dark : Brightness.light, useMaterial3: true, fontFamily: 'Inter');
   final btnText = inter(16, w: FontWeight.w600);
   return base.copyWith(
     scaffoldBackgroundColor: C.ground,
-    colorScheme: const ColorScheme.dark(
+    colorScheme: (dark ? ColorScheme.dark : ColorScheme.light)(
         primary: C.accent, onPrimary: C.onAccent, secondary: C.peri, surface: C.surface, onSurface: C.text, error: C.rose, outline: C.line),
     textTheme: base.textTheme.apply(bodyColor: C.text, displayColor: C.text),
-    dividerTheme: const DividerThemeData(color: C.line, thickness: 1, space: 1),
-    appBarTheme: const AppBarTheme(backgroundColor: C.ground, surfaceTintColor: Colors.transparent, scrolledUnderElevation: 0),
+    dividerTheme: DividerThemeData(color: C.line, thickness: 1, space: 1),
+    appBarTheme: AppBarTheme(backgroundColor: C.ground, surfaceTintColor: Colors.transparent, scrolledUnderElevation: 0),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: C.base,
       surfaceTintColor: Colors.transparent,
@@ -55,7 +158,7 @@ ThemeData creoTheme() {
             backgroundColor: C.accent, foregroundColor: C.onAccent, minimumSize: const Size(48, 52), shape: const StadiumBorder(), textStyle: btnText)),
     outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-            foregroundColor: C.text, minimumSize: const Size(48, 52), shape: const StadiumBorder(), side: const BorderSide(color: C.line, width: 1.5), textStyle: btnText)),
+            foregroundColor: C.text, disabledForegroundColor: C.mist, minimumSize: const Size(48, 52), shape: const StadiumBorder(), side: BorderSide(color: C.line, width: 1.5), textStyle: btnText)),
     listTileTheme: ListTileThemeData(
         contentPadding: EdgeInsets.zero, minVerticalPadding: 10, iconColor: C.mist, titleTextStyle: inter(16, w: FontWeight.w500), subtitleTextStyle: inter(14, c: C.mist)),
     snackBarTheme: SnackBarThemeData(backgroundColor: C.raised, contentTextStyle: inter(15), behavior: SnackBarBehavior.floating),
@@ -67,12 +170,12 @@ ThemeData creoTheme() {
       hintStyle: inter(15, c: C.mist),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: C.accent, width: 1.5)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: C.accent, width: 1.5)),
       errorStyle: inter(13, c: C.rose),
     ),
-    bottomSheetTheme: const BottomSheetThemeData(backgroundColor: C.base, surfaceTintColor: Colors.transparent, showDragHandle: true),
-    dialogTheme: const DialogThemeData(backgroundColor: C.raised, surfaceTintColor: Colors.transparent),
-    datePickerTheme: const DatePickerThemeData(backgroundColor: C.raised, surfaceTintColor: Colors.transparent),
+    bottomSheetTheme: BottomSheetThemeData(backgroundColor: C.base, surfaceTintColor: Colors.transparent, showDragHandle: true),
+    dialogTheme: DialogThemeData(backgroundColor: C.raised, surfaceTintColor: Colors.transparent),
+    datePickerTheme: DatePickerThemeData(backgroundColor: C.raised, surfaceTintColor: Colors.transparent),
   );
 }
 
@@ -192,7 +295,7 @@ class Chips extends StatelessWidget {
             labelStyle: inter(15, w: i == selected ? FontWeight.w600 : FontWeight.w400, c: i == selected ? C.ground : C.mist2),
             selectedColor: C.text,
             backgroundColor: C.ground,
-            side: i == selected ? BorderSide.none : const BorderSide(color: C.line, width: 1.5),
+            side: i == selected ? BorderSide.none : BorderSide(color: C.line, width: 1.5),
             shape: const StadiumBorder(),
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           ),
@@ -258,7 +361,7 @@ class SearchBox extends StatelessWidget {
           onChanged: onChanged,
           style: inter(16),
           decoration: InputDecoration(
-              hintText: hint, prefixIcon: const Icon(Icons.search, color: C.mist), border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(999)), borderSide: BorderSide.none))));
+              hintText: hint, prefixIcon: Icon(Icons.search, color: C.mist), border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(999)), borderSide: BorderSide.none))));
 }
 
 /// One field in a [formSheet]. Give [options] for a dropdown, [date] for a date picker.
@@ -331,7 +434,7 @@ class _FormSheetState extends State<_FormSheet> {
                             },
                             child: InputDecorator(
                               decoration: InputDecoration(
-                                  labelText: f.required ? '${f.label} *' : f.label, errorText: s.errorText, suffixIcon: const Icon(Icons.event, color: C.mist)),
+                                  labelText: f.required ? '${f.label} *' : f.label, errorText: s.errorText, suffixIcon: Icon(Icons.event, color: C.mist)),
                               child: Text((s.value ?? '').isEmpty ? 'Pick a date' : dm(DateTime.parse(s.value!)), style: inter(16)),
                             ),
                           ),

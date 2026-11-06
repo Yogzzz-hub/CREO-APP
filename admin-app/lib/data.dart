@@ -55,6 +55,9 @@ String csvCell(Object v) {
 
 String csvRow(List<Object> cells) => cells.map(csvCell).join(',');
 
+/// One address: no spaces, one @, and a dot in the domain (name@agency.in). The server must check again.
+bool validEmail(String s) => RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(s.trim());
+
 /// Names link records together (a task's client, a person's pod), so each name must be unique.
 bool nameTaken(Iterable<String> names, String name) => names.any((n) => n.trim().toLowerCase() == name.trim().toLowerCase());
 

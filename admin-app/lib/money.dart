@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'data.dart';
+import 'save_csv.dart' if (dart.library.js_interop) 'save_csv_web.dart';
 import 'ui.dart';
 
 class MoneyTab extends StatelessWidget {
@@ -36,13 +36,13 @@ class _RevenueState extends State<_Revenue> {
   int pick = 0; // 0 all, 1 card, 2 upi
   String q = '';
 
-  void exportCsv() {
+  Future<void> exportCsv() async {
     final rows = [
       csvRow(const ['Invoice', 'Client', 'Covers', 'Date', 'Amount', 'Method']),
       for (final v in invoices) csvRow([v.number, v.client, v.scope, v.date.toIso8601String().substring(0, 10), v.amount, v.method]),
     ];
-    Clipboard.setData(ClipboardData(text: rows.join('\n')));
-    toast(context, 'Copied ${invoices.length} invoices as CSV');
+    final done = await saveCsv('creo-invoices.csv', rows.join('\n'));
+    if (mounted) toast(context, '$done, ${invoices.length} invoices');
   }
 
   void openInvoice(Invoice v) => openPage(context, 'Invoice ${v.number}', (c) => [
@@ -114,7 +114,7 @@ class _RevenueState extends State<_Revenue> {
       else
         Rows([for (final v in list) tile(v.client, s: '#${v.number} · ${dm(v.date)} · ${v.method}', trail: money(v.amount), onTap: () => openInvoice(v))]),
       twoButtons(
-        OutlinedButton(onPressed: invoices.isEmpty ? null : exportCsv, child: const Text('Copy CSV')),
+        OutlinedButton(onPressed: invoices.isEmpty ? null : exportCsv, child: const Text('Export CSV')),
         FilledButton(onPressed: () => newInvoice(context), child: const Text('New invoice')),
       ),
     ]);

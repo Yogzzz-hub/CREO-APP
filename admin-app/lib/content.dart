@@ -113,7 +113,7 @@ class _ReviewState extends State<_Review> {
                 const SizedBox(height: 3),
                 Text('${d.client} · ${d.format} · ${dm(d.date)}${d.notes.isEmpty ? '' : ' · ${d.notes.length} notes'}', style: inter(14, c: C.mist)),
               ])),
-              const Icon(Icons.chevron_right, color: C.mist),
+              Icon(Icons.chevron_right, color: C.mist),
             ]),
           ),
           actions(_draftActions(context, d, filled: i == 0)),
@@ -130,7 +130,7 @@ class _Calendar extends StatefulWidget {
 }
 
 class _CalendarState extends State<_Calendar> {
-  int view = 0; // 0 week, 1 month, 2 agenda
+  bool agenda = false;
   DateTime day = today;
 
   Widget dayCell(DateTime d, {bool showName = false}) {
@@ -159,7 +159,6 @@ class _CalendarState extends State<_Calendar> {
   @override
   Widget build(BuildContext context) {
     final inMonth = deliverables.where((d) => d.date.year == day.year && d.date.month == day.month);
-    final monday = day.subtract(Duration(days: day.weekday - 1));
     final first = DateTime(day.year, day.month, 1);
     final daysInMonth = DateTime(day.year, day.month + 1, 0).day;
     final lead = first.weekday - 1;
@@ -170,26 +169,25 @@ class _CalendarState extends State<_Calendar> {
     return page([
       const SizedBox(height: 4),
       Kv([for (final f in formats) ('${f}s', '${inMonth.where((d) => d.format == f).length}')]),
-      Chips(labels: const ['Week', 'Month', 'Agenda'], selected: view, onSelect: (i) => setState(() => view = i)),
-      if (view < 2)
+      Chips(labels: const ['Month', 'Agenda'], selected: agenda ? 1 : 0, onSelect: (i) => setState(() => agenda = i == 1)),
+      if (!agenda)
         Padding(
           padding: const EdgeInsets.only(top: 12),
           child: Row(children: [
             IconButton(
                 tooltip: 'Back',
-                onPressed: () => setState(() => day = view == 0 ? day.subtract(const Duration(days: 7)) : DateTime(day.year, day.month - 1, 1)),
+                onPressed: () => setState(() => day = DateTime(day.year, day.month - 1, 1)),
                 icon: const Icon(Icons.chevron_left)),
-            Expanded(child: Text(view == 0 ? 'Week of ${dm(monday)}' : '${monthName(day)} ${day.year}', textAlign: TextAlign.center, style: inter(16, w: FontWeight.w600))),
+            Expanded(child: Text('${monthName(day)} ${day.year}', textAlign: TextAlign.center, style: inter(16, w: FontWeight.w600))),
             IconButton(
                 tooltip: 'Next',
-                onPressed: () => setState(() => day = view == 0 ? day.add(const Duration(days: 7)) : DateTime(day.year, day.month + 1, 1)),
+                onPressed: () => setState(() => day = DateTime(day.year, day.month + 1, 1)),
                 icon: const Icon(Icons.chevron_right)),
           ]),
         ),
-      if (view < 2)
+      if (!agenda)
         Row(children: [for (final l in const ['M', 'T', 'W', 'T', 'F', 'S', 'S']) Expanded(child: Text(l, textAlign: TextAlign.center, style: inter(12, c: C.mist)))]),
-      if (view == 0) Row(children: [for (var i = 0; i < 7; i++) dayCell(monday.add(Duration(days: i)))]),
-      if (view == 1)
+      if (!agenda)
         for (var w = 0; w < ((lead + daysInMonth) / 7).ceil(); w++)
           Row(children: [
             for (var i = 0; i < 7; i++)
@@ -198,14 +196,14 @@ class _CalendarState extends State<_Calendar> {
               else
                 const Expanded(child: SizedBox(height: 56)),
           ]),
-      if (view < 2) ...[
+      if (!agenda) ...[
         sec('${longDate(day)} · ${ofDay.length} items'),
         if (ofDay.isEmpty) empty('Nothing scheduled.') else Rows([for (final d in ofDay) dayRow(d)]),
       ] else ...[
         sec('Coming up'),
         if (upcoming.isEmpty) empty('Nothing scheduled.') else Rows([for (final d in upcoming) tile(d.title, s: '${dm(d.date)} · ${d.client} · ${d.format}', onTap: () => _openDraft(context, d))]),
       ],
-      mainButton('Schedule a post', () => newDraft(context, on: view < 2 ? day : null)),
+      mainButton('Schedule a post', () => newDraft(context, on: agenda ? null : day)),
     ]);
   }
 }

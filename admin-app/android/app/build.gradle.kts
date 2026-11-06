@@ -8,8 +8,8 @@ plugins {
 }
 
 // Release signing key, kept out of the repo: android/key.properties (git-ignored) with
-// storeFile, storePassword, keyAlias and keyPassword. Without it, release builds are left
-// unsigned instead of being signed with the shared debug key.
+// storeFile, storePassword, keyAlias and keyPassword. Without it, release builds stop with an
+// error instead of coming out unsigned or signed with the shared debug key.
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
@@ -52,7 +52,10 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (keystorePropertiesFile.exists()) signingConfigs.getByName("release") else null
+            if (!keystorePropertiesFile.exists() && gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }) {
+                throw GradleException("android/key.properties is missing, so this release build would be unsigned. See the note at the top of this file.")
+            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

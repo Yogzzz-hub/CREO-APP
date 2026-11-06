@@ -108,4 +108,13 @@ void main() {
     expect(nameTaken(['Zest Foods'], ' zest foods '), isTrue);
     expect(nameTaken(['Zest Foods'], 'Zest'), isFalse);
   });
+
+  test('invite emails need a name, one @ and a domain with a dot', () {
+    for (final ok in ['ana@creo.in', ' ana.k+1@mail.co.uk ']) {
+      expect(validEmail(ok), isTrue, reason: ok);
+    }
+    for (final bad in ['@', 'ana@', '@creo.in', 'ana@creo', 'a b@creo.in', 'ana@@creo.in', '']) {
+      expect(validEmail(bad), isFalse, reason: bad);
+    }
+  });
 }

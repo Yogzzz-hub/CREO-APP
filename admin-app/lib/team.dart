@@ -30,7 +30,7 @@ Future<void> invitePerson(BuildContext context, Kind kind) async {
     if (kind == Kind.sales) ...[const F('Target, ₹ a quarter', number: true), const F('Commission %', number: true)],
   ], 'Send invite');
   if (v == null) return;
-  if (!v['Email for the invite']!.contains('@')) {
+  if (!validEmail(v['Email for the invite']!)) {
     if (context.mounted) toast(context, 'That email does not look right');
     return;
   }
@@ -145,7 +145,7 @@ class _Pods extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text('Lead ${p.lead} · ${p.members.length} people', style: inter(14, c: C.mist)),
               ])),
-              const Icon(Icons.chevron_right, color: C.mist),
+              Icon(Icons.chevron_right, color: C.mist),
             ]),
             meter(podProgress(p), C.accent),
             const SizedBox(height: 6),
@@ -356,7 +356,7 @@ Future<void> onboardClient(BuildContext context) async {
     F('Pod', options: podNames),
   ], 'Send invite');
   if (v == null) return;
-  if (!v['Login email']!.contains('@')) {
+  if (!validEmail(v['Login email']!)) {
     if (context.mounted) toast(context, 'That email does not look right');
     return;
   }
