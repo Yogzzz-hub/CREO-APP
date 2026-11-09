@@ -175,43 +175,50 @@ ThemeData buildCreoTheme({Brightness brightness = Brightness.dark}) {
 
     // ── Input decoration ───────────────────────────────────────────────────
     inputDecorationTheme: InputDecorationTheme(
-      filled: false,
-      enabledBorder: UnderlineInputBorder(
-        borderSide: BorderSide(color: palette.appMist, width: 2),
+      filled: true,
+      fillColor: palette.appSurface,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: palette.appMist), // 3:1 vs page
       ),
-      focusedBorder: UnderlineInputBorder(
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: palette.appMist), // 3:1 vs page
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(color: accent, width: 2),
       ),
-      errorBorder: UnderlineInputBorder(
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: palette.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(color: palette.error, width: 2),
       ),
       hintStyle: TextStyle(
         fontFamily: 'Inter',
-        color: palette.appMist,
-        fontSize: 20,
-        fontWeight: FontWeight.w500,
+        color: palette.appMist.withValues(alpha: 0.7),
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
       ),
-      labelStyle: TextStyle(
-        fontFamily: 'Inter',
-        fontSize: 14,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.0,
-        color: palette.appMist,
-      ),
-      contentPadding: EdgeInsets.symmetric(vertical: 12),
+      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     ),
 
-    // ── Elevated button (SubmitPill) ───────────────────────────────────────
+    // ── Elevated button (primary) ──────────────────────────────────────────
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: palette.appInk,
-        foregroundColor: palette.appBase,
-        disabledBackgroundColor: palette.appInk.withValues(alpha: 0.60),
-        shape: StadiumBorder(),
-        padding: EdgeInsets.zero,
+        backgroundColor: accent,
+        foregroundColor: palette.onAccent,
+        disabledBackgroundColor: accent.withValues(alpha: 0.6),
+        disabledForegroundColor: palette.onAccent,
+        minimumSize: Size.fromHeight(56),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: EdgeInsets.symmetric(horizontal: 20),
         textStyle: TextStyle(
           fontFamily: 'Inter',
-          fontSize: 15,
+          fontSize: 16,
           fontWeight: FontWeight.w600,
         ),
         elevation: 0,
@@ -222,8 +229,9 @@ ThemeData buildCreoTheme({Brightness brightness = Brightness.dark}) {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: palette.appInk,
-        side: BorderSide(color: palette.appMist, width: 2),
-        shape: StadiumBorder(),
+        side: BorderSide(color: palette.appLine, width: 1.5),
+        minimumSize: Size(48, 52),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         padding: EdgeInsets.symmetric(vertical: 14, horizontal: 20),
         textStyle: TextStyle(
           fontFamily: 'Inter',

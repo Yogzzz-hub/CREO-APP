@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'src/core/app_theme.dart';
 import 'src/core/app_appearance.dart';
-import 'src/features/landing/landing_page.dart';
 import 'src/features/auth/auth_screen.dart';
+import 'src/features/splash/splash_screen.dart';
 import 'src/core/auth_session.dart';
 import 'src/features/auth/session_lifecycle_gate.dart';
 
@@ -29,7 +29,7 @@ class CreoApp extends StatelessWidget {
     final owner = session ?? AuthSession.shared;
     final colors = appearance ?? CreoAppearance.shared;
     final routes = <String, WidgetBuilder>{
-      '/': (context) => const LandingPage(),
+      '/': (context) => const SplashScreen(),
       '/login': (context) => AuthScreen(
         defaultView: 'signin',
         session: owner,
@@ -63,12 +63,22 @@ class CreoApp extends StatelessWidget {
             ? Duration.zero
             : const Duration(milliseconds: 220),
         initialRoute: owner.navigationEpoch > 0 ? '/login' : initialRoute,
-        onGenerateInitialRoutes: (name) => [
-          MaterialPageRoute<void>(
-            settings: RouteSettings(name: name),
-            builder: routes[name] ?? routes['/']!,
-          ),
-        ],
+        onGenerateInitialRoutes: (name) {
+          // A web reload keeps the URL (e.g. #/login) and skips '/'. Still
+          // play the splash first on a cold start, then go to that route.
+          final fromUrl =
+              name != initialRoute &&
+              owner.navigationEpoch == 0 &&
+              routes.containsKey(name);
+          return [
+            MaterialPageRoute<void>(
+              settings: RouteSettings(name: fromUrl ? '/' : name),
+              builder: fromUrl
+                  ? (_) => SplashScreen(next: name)
+                  : routes[name] ?? routes['/']!,
+            ),
+          ];
+        },
         builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,

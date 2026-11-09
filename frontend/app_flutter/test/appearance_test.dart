@@ -82,7 +82,7 @@ void main() {
         greaterThanOrEqualTo(4.5),
       );
       final border =
-          (theme.inputDecorationTheme.enabledBorder! as UnderlineInputBorder)
+          (theme.inputDecorationTheme.enabledBorder! as OutlineInputBorder)
               .borderSide
               .color;
       expect(contrast(border, palette.appBase), greaterThanOrEqualTo(3));
@@ -166,13 +166,15 @@ void main() {
           final owner = AuthSession(store: MemorySessionStore());
           await owner.restore();
           await tester.pumpWidget(
-            CreoApp(session: owner, appearance: appearance),
+            CreoApp(
+              session: owner,
+              appearance: appearance,
+              initialRoute: '/login',
+            ),
           );
           await tester.pumpAndSettle();
           expect(find.byType(CreoThemeToggle), findsOneWidget);
           expect(tester.takeException(), isNull);
-          await tester.tap(find.text('Sign in'));
-          await tester.pumpAndSettle();
           await tester.ensureVisible(find.byType(CreoThemeToggle));
           await tester.tap(find.byType(CreoThemeToggle));
           await tester.pumpAndSettle();

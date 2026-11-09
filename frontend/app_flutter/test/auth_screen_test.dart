@@ -307,7 +307,7 @@ void main() {
     await tester.ensureVisible(signup);
     await tester.tap(signup);
     await tester.pumpAndSettle();
-    expect(find.text('FULL NAME'), findsOneWidget);
+    expect(find.text('Full name'), findsOneWidget);
     expect(find.text('Continue with Google'), findsOneWidget);
     pending.complete(http.Response(jsonEncode(sessionJson()), 200));
     await tester.pumpAndSettle();

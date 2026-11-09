@@ -3,8 +3,6 @@ import 'package:app_flutter/src/core/auth_repository.dart';
 import 'package:app_flutter/src/core/auth_session.dart';
 import 'package:app_flutter/src/features/auth/auth_screen.dart';
 import 'package:app_flutter/src/core/app_theme.dart';
-import 'package:app_flutter/src/features/landing/landing_motion.dart';
-import 'package:app_flutter/src/features/landing/landing_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -83,74 +81,6 @@ void main() {
           repo.close();
         },
       );
-    }
-  }
-  for (final size in [const Size(280, 520), const Size(480, 300)]) {
-    for (final scale in [1.0, 2.0]) {
-      testWidgets('landing uses actual parent $size with text scale $scale', (
-        tester,
-      ) async {
-        tester.view.physicalSize = const Size(1024, 900);
-        tester.view.devicePixelRatio = 1;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        final parent = GlobalKey();
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: buildCreoTheme(),
-            home: MediaQuery(
-              data: MediaQueryData(
-                size: const Size(1024, 900),
-                textScaler: TextScaler.linear(scale),
-                disableAnimations: true,
-              ),
-              child: Center(
-                child: SizedBox(
-                  key: parent,
-                  width: size.width,
-                  height: size.height,
-                  child: const LandingPage(),
-                ),
-              ),
-            ),
-          ),
-        );
-        await tester.pump();
-        final header = tester.widget<SliverPersistentHeader>(
-          find.byType(SliverPersistentHeader),
-        );
-        expect((header.delegate as LandingHeroDelegate).height, size.height);
-        final scroll = tester
-            .widget<CustomScrollView>(find.byType(CustomScrollView))
-            .controller!;
-        for (
-          double offset = 0;
-          offset < scroll.position.maxScrollExtent;
-          offset += 600
-        ) {
-          scroll.jumpTo(offset);
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 1400));
-          expect(
-            tester.takeException(),
-            isNull,
-            reason: 'parent=$size scale=$scale offset=$offset',
-          );
-        }
-        scroll.jumpTo(scroll.position.maxScrollExtent);
-        await tester.pump();
-        expect(tester.takeException(), isNull);
-        final button = find.widgetWithText(
-          ElevatedButton,
-          'Claim Free Sample Batch',
-        );
-        await tester.ensureVisible(button);
-        await tester.pump();
-        final textRect = tester.getRect(find.text('Claim Free Sample Batch'));
-        final buttonRect = tester.getRect(button);
-        expect(textRect.height, lessThanOrEqualTo(buttonRect.height));
-        await tester.pumpWidget(const SizedBox());
-      });
     }
   }
 }

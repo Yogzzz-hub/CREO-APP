@@ -1,35 +1,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// AuthScreen – Flutter port of frontend/src/pages/auth/AuthPage.tsx
+// AuthScreen – mobile sign-in, sign-up and email verification (OTP).
 //
-// Screens:   signin | signup | verify (OTP)
-// Features:
-//   • Animated mode-toggle pill (Sign in / Create account)
-//   • Underline-style form fields (matches AuthField / FIELD_INPUT)
-//   • Password visibility toggle
-//   • Remember-me / Accept-terms checkbox
-//   • Account-method conflict notice (PASSWORD_NOT_SET / ACCOUNT_EXISTS)
-//   • Generic error banner (INVALID_CREDENTIALS → shows "Reset password")
-//   • SubmitPill button with spinner + "Waking up server" message after 3.5 s
-//   • "Continue with Google" outlined pill
-//   • Forgot-password bottom-sheet modal
-//   • WhatsApp help link
-//   • Brand panel (amber gradient, headline, bullet list)
-//   • Fade-in / slide-up animations (respects MediaQuery.disableAnimations)
+// One screen, three views: signin | signup | verify. Backend calls go through
+// AuthRepository / AuthSession; this file only owns form state and layout.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 import '../../core/app_theme.dart';
 import '../../core/app_appearance.dart';
 import '../../core/auth_repository.dart';
 import '../../core/auth_session.dart';
-
-// ── String constants (mirrors COPY in AuthPage.tsx) ─────────────────────────
-const _kWhatsAppUrl = 'https://wa.me/919941999415';
+import '../splash/splash_screen.dart';
 
 String? validateLoginEmail(String value) {
   final email = value.trim();
@@ -50,51 +34,21 @@ String? validateLoginPassword(String value) {
 }
 
 class _ScreenCopy {
-  final String eyebrow;
   final String title;
   final String Function(String email) lead;
-  final List<String> points;
-  const _ScreenCopy({
-    required this.eyebrow,
-    required this.title,
-    required this.lead,
-    required this.points,
-  });
+  const _ScreenCopy({required this.title, required this.lead});
 }
 
 const _copy = {
-  'signin': _ScreenCopy(
-    eyebrow: 'Client portal',
-    title: 'Welcome back.',
-    lead: _signinLead,
-    points: [
-      'Every batch lands in one portal',
-      'Approve in one click, or decline with a note',
-      'SLA-timed delivery; late batch credited',
-    ],
-  ),
-  'signup': _ScreenCopy(
-    eyebrow: 'New account',
-    title: 'Start shipping every week.',
-    lead: _signupLead,
-    points: [
-      'A dedicated lead, editor and designer',
-      'Brand DNA onboarding on day one',
-      'Month-to-month, cancel anytime',
-    ],
-  ),
-  'verify': _ScreenCopy(
-    eyebrow: 'One last step',
-    title: 'Check your inbox.',
-    lead: _verifyLead,
-    points: [],
-  ),
+  'signin': _ScreenCopy(title: 'Welcome back.', lead: _signinLead),
+  'signup': _ScreenCopy(title: 'Create your account.', lead: _signupLead),
+  'verify': _ScreenCopy(title: 'Check your inbox.', lead: _verifyLead),
 };
 
 String _signinLead(String _) =>
-    'Sign in to review this week\'s batch, approve drafts and keep your pod moving.';
+    'Sign in to review this week\'s batch and approve drafts.';
 String _signupLead(String _) =>
-    'Create your account, add your Brand DNA, and your first batch lands within 7 days.';
+    'Set up your brand and your first batch lands within 7 days.';
 String _verifyLead(String email) =>
     'We sent a 6-digit code to ${email.isNotEmpty ? email : 'your email'}. Enter it to finish creating your account.';
 
@@ -137,7 +91,7 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
+class _AuthScreenState extends State<AuthScreen> {
   late final AuthRepository _repo;
   late final AuthSession _session;
   final _signInKey = GlobalKey<FormState>();
@@ -158,24 +112,11 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   bool _loading = false;
   bool _slowServerWake = false;
   bool _showPassword = false;
-  bool _rememberMe = true;
   bool _termsAccepted = true;
   bool _registrationPending = false;
   _AuthNotice? _error;
 
   Timer? _wakeTimer;
-
-  // ── Animations ────────────────────────────────────────────────────────
-  late AnimationController _headlineCtrl;
-  late Animation<Offset> _headlineSlide;
-  late Animation<double> _headlineFade;
-
-  late AnimationController _leadCtrl;
-  late Animation<Offset> _leadSlide;
-  late Animation<double> _leadFade;
-
-  bool get _reduceMotion =>
-      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
   @override
   void initState() {
@@ -187,46 +128,6 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
             ? AuthSession.shared
             : AuthSession(store: _repo.store));
     _mode = widget.defaultView == 'signup' ? 'signup' : 'signin';
-    _rememberMe = _mode == 'signin';
-
-    _headlineCtrl = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 200),
-    );
-    _headlineSlide = Tween<Offset>(begin: Offset(0, 0.08), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _headlineCtrl, curve: Curves.easeOutExpo),
-        );
-    _headlineFade = CurvedAnimation(
-      parent: _headlineCtrl,
-      curve: Curves.easeOut,
-    );
-
-    _leadCtrl = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 200),
-    );
-    _leadSlide = Tween<Offset>(
-      begin: Offset(0, 0.2),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _leadCtrl, curve: Curves.easeOutExpo));
-    _leadFade = CurvedAnimation(parent: _leadCtrl, curve: Curves.easeOut);
-
-    _playAnimations(delay: Duration(milliseconds: 100));
-  }
-
-  void _playAnimations({Duration delay = Duration.zero}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_reduceMotion) return;
-      Future.delayed(delay, () {
-        if (!mounted) return;
-        _headlineCtrl.forward(from: 0);
-        Future.delayed(Duration(milliseconds: 50), () {
-          if (mounted && !_reduceMotion) _leadCtrl.forward(from: 0);
-        });
-      });
-    });
   }
 
   @override
@@ -237,8 +138,6 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     _passwordFocus.dispose();
     _formScroll.dispose();
     _wakeTimer?.cancel();
-    _headlineCtrl.dispose();
-    _leadCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _fullNameCtrl.dispose();
@@ -252,10 +151,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     if (next == _mode || _loading || _destination != null) return;
     setState(() {
       _mode = next;
-      _rememberMe = next == 'signin';
       _error = null;
     });
-    _playAnimations(delay: Duration(milliseconds: 50));
   }
 
   // ── Error helper ──────────────────────────────────────────────────────
@@ -568,429 +465,313 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final screen = _registrationPending ? 'verify' : _mode;
     final copy = _copy[screen]!;
-    final email = _emailCtrl.text.trim();
+    final busy = _loading || _destination != null;
+    final text = Theme.of(context).textTheme;
 
     return Scaffold(
       backgroundColor: context.creo.appBase,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (ctx, constraints) {
-            final isWide =
-                constraints.maxWidth > 800 &&
-                constraints.maxHeight > 620 &&
-                MediaQuery.textScalerOf(context).scale(1) < 1.5;
-            if (isWide) {
-              return Row(
-                children: [
-                  SizedBox(
-                    width: constraints.maxWidth * 0.42,
-                    child: _buildBrandPanel(copy, email, screen),
-                  ),
-                  Expanded(child: _buildFormPanel(copy, screen)),
-                ],
-              );
-            }
-            // Mobile: stack brand strip then form
-            return SingleChildScrollView(
-              controller: _formScroll,
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        child: SingleChildScrollView(
+          controller: _formScroll,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildBrandStrip(copy, email),
-                  _buildFormPanel(copy, screen, embedded: true),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  // ── Brand panel (desktop left column) ────────────────────────────────
-  Widget _buildBrandPanel(_ScreenCopy copy, String email, String screen) {
-    return Container(
-      color: CreoColors.accent,
-      padding: EdgeInsets.fromLTRB(40, 36, 40, 48),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Wordmark
-          _Wordmark(),
-          SizedBox(height: 48),
-          Spacer(),
-          // Eyebrow
-          Text(
-            copy.eyebrow.toUpperCase(),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: CreoColors.onAccent.withValues(alpha: 0.7),
-              letterSpacing: 2.5,
-            ),
-          ),
-          SizedBox(height: 16),
-          // Animated headline
-          _reduceMotion
-              ? Text(
-                  copy.title,
-                  style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                    color: CreoColors.onAccent,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -2,
+                  Row(
+                    children: [
+                      const CreoMark(height: 28),
+                      const Spacer(),
+                      if (CreoAppearanceScope.maybeOf(context) != null)
+                        const CreoThemeToggle(),
+                    ],
                   ),
-                )
-              : SlideTransition(
-                  position: _headlineSlide,
-                  child: FadeTransition(
-                    opacity: _headlineFade,
-                    child: Text(
-                      copy.title,
-                      style: Theme.of(context).textTheme.displayMedium
-                          ?.copyWith(
-                            color: CreoColors.onAccent,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -2,
-                          ),
+                  const SizedBox(height: 40),
+                  Text(
+                    copy.title,
+                    style: text.headlineLarge?.copyWith(
+                      color: context.creo.appInk,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1,
                     ),
                   ),
-                ),
-          SizedBox(height: 20),
-          // Animated lead
-          _reduceMotion
-              ? Text(
-                  copy.lead(email),
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: CreoColors.onAccent.withValues(alpha: 0.75),
+                  const SizedBox(height: 8),
+                  Text(
+                    copy.lead(_emailCtrl.text.trim()),
+                    style: text.bodyMedium,
                   ),
-                )
-              : SlideTransition(
-                  position: _leadSlide,
-                  child: FadeTransition(
-                    opacity: _leadFade,
-                    child: Text(
-                      copy.lead(email),
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: CreoColors.onAccent.withValues(alpha: 0.75),
+                  const SizedBox(height: 32),
+
+                  if (widget.sessionMessage != null &&
+                      _error == null &&
+                      !_loading)
+                    Semantics(
+                      liveRegion: true,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Text(widget.sessionMessage!),
                       ),
                     ),
-                  ),
-                ),
-          // Feature bullets
-          if (copy.points.isNotEmpty) ...[
-            SizedBox(height: 28),
-
-            Divider(color: CreoColors.onAccent.withValues(alpha: 0.15)),
-            SizedBox(height: 20),
-            ...copy.points.map((p) => _BulletItem(text: p)),
-          ],
-          Spacer(),
-          // Back to site
-          _BackToSiteButton(),
-        ],
-      ),
-    );
-  }
-
-  // ── Brand strip (mobile top section) ─────────────────────────────────
-  Widget _buildBrandStrip(_ScreenCopy copy, String email) {
-    return Container(
-      color: CreoColors.accent,
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(24, 20, 24, 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            spacing: 24,
-            runSpacing: 12,
-            children: [_Wordmark(), _BackToSiteButton()],
-          ),
-          SizedBox(height: 12),
-          Text(
-            copy.eyebrow.toUpperCase(),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: CreoColors.onAccent.withValues(alpha: 0.7),
-            ),
-          ),
-          SizedBox(height: 6),
-          Text(
-            copy.title,
-            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-              color: CreoColors.onAccent,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1.5,
-            ),
-          ),
-          SizedBox(height: 6),
-          Text(
-            copy.lead(email),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: CreoColors.onAccent.withValues(alpha: 0.75),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Form panel (right on desktop, bottom on mobile) ───────────────────
-  Widget _buildFormPanel(
-    _ScreenCopy copy,
-    String screen, {
-    bool embedded = false,
-  }) {
-    return SingleChildScrollView(
-      controller: embedded ? null : _formScroll,
-      primary: false,
-      physics: embedded ? NeverScrollableScrollPhysics() : null,
-      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 440),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Mode toggle pill
-              if (CreoAppearanceScope.maybeOf(context) != null) ...[
-                const Align(
-                  alignment: Alignment.centerRight,
-                  child: CreoThemeToggle(),
-                ),
-                const SizedBox(height: 12),
-              ],
-              if (!_registrationPending)
-                AbsorbPointer(
-                  absorbing: _loading || _destination != null,
-                  child: _ModeToggle(selected: _mode, onSelect: _switchMode),
-                ),
-              SizedBox(height: 28),
-
-              if (widget.sessionMessage != null && _error == null && !_loading)
-                Semantics(
-                  liveRegion: true,
-                  child: Padding(
-                    padding: EdgeInsets.only(bottom: 16),
-                    child: Text(widget.sessionMessage!),
-                  ),
-                ),
-
-              // Error / account-method notice
-              if (_error != null)
-                Semantics(liveRegion: true, child: _buildErrorBanner(_error!)),
-              if (_destination != null)
-                Semantics(
-                  liveRegion: true,
-                  child: Padding(
-                    padding: EdgeInsets.only(bottom: 24),
-                    child: Text(
-                      'Sign-in accepted. ${_destination!.blocker}',
-                      key: Key('destination-status'),
+                  if (_error != null)
+                    Semantics(
+                      liveRegion: true,
+                      child: _buildErrorBanner(_error!),
                     ),
-                  ),
-                ),
+                  if (_destination != null)
+                    Semantics(
+                      liveRegion: true,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        child: Text(
+                          'Sign-in accepted. ${_destination!.blocker}',
+                          key: const Key('destination-status'),
+                        ),
+                      ),
+                    ),
 
-              // Forms
-              if (_registrationPending)
-                _VerifyForm(
-                  otpCtrl: _otpCtrl,
-                  loading: _loading,
-                  onSubmit: _handleVerify,
-                  onResend: _handleResend,
-                  onChangeDetails: () => setState(() {
-                    _registrationPending = false;
-                    _otpCtrl.clear();
-                    _error = null;
-                  }),
-                )
-              else if (_mode == 'signin')
-                AutofillGroup(
-                  child: Form(
-                    key: _signInKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                  if (_registrationPending)
+                    _VerifyForm(
+                      otpCtrl: _otpCtrl,
+                      loading: _loading,
+                      onSubmit: _handleVerify,
+                      onResend: _handleResend,
+                      onChangeDetails: () => setState(() {
+                        _registrationPending = false;
+                        _otpCtrl.clear();
+                        _error = null;
+                      }),
+                    )
+                  else if (_mode == 'signin')
+                    _buildSignInForm(busy)
+                  else
+                    _buildSignUpForm(busy),
+
+                  const SizedBox(height: 24),
+                  _SubmitPill(
+                    loading: _loading,
+                    onPressed: busy
+                        ? null
+                        : (_registrationPending
+                              ? _handleVerify
+                              : _handleSubmit),
+                    label: _submitLabel,
+                  ),
+                  if (_loading && _attempt != null && _mode == 'signin')
+                    TextButton(
+                      onPressed: _cancelSignIn,
+                      child: const Text('Cancel sign-in'),
+                    ),
+                  if (_loading && _slowServerWake)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Text(
+                        'The server was asleep after a quiet spell. Waking it up can take about 30 seconds.',
+                        textAlign: TextAlign.center,
+                        style: text.bodyMedium?.copyWith(fontSize: 14),
+                      ),
+                    ),
+
+                  if (!_registrationPending) ...[
+                    const SizedBox(height: 24),
+                    Row(
                       children: [
-                        TextFormField(
-                          key: Key('login-email'),
-                          controller: _emailCtrl,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w500,
-                            color: context.creo.appInk,
-                          ),
-                          focusNode: _emailFocus,
-                          enabled: !_loading && _destination == null,
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          autofillHints: [
-                            AutofillHints.username,
-                            AutofillHints.email,
-                          ],
-                          autocorrect: false,
-                          textCapitalization: TextCapitalization.none,
-                          validator: (v) => validateLoginEmail(v ?? ''),
-                          onFieldSubmitted: (_) =>
-                              _passwordFocus.requestFocus(),
-                          decoration: InputDecoration(
-                            labelText: 'Work email',
-                            hintText: 'name@brand.com',
-                            floatingLabelBehavior: FloatingLabelBehavior.always,
-                            errorMaxLines: 4,
-                          ),
+                        Expanded(child: Divider(color: context.creo.appLine)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text('or', style: text.bodyMedium),
                         ),
-                        SizedBox(height: 24),
-                        TextFormField(
-                          key: Key('login-password'),
-                          controller: _passwordCtrl,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w500,
-                            color: context.creo.appInk,
-                          ),
-                          focusNode: _passwordFocus,
-                          enabled: !_loading && _destination == null,
-                          obscureText: !_showPassword,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          textInputAction: TextInputAction.done,
-                          autofillHints: [AutofillHints.password],
-                          validator: (v) => validateLoginPassword(v ?? ''),
-                          onFieldSubmitted: (_) => _signIn(),
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            floatingLabelBehavior: FloatingLabelBehavior.always,
-                            errorMaxLines: 4,
-                            suffixIcon: IconButton(
-                              tooltip: _showPassword
-                                  ? 'Hide password'
-                                  : 'Show password',
-                              constraints: BoxConstraints(
-                                minWidth: 48,
-                                minHeight: 48,
-                              ),
-                              onPressed: _loading || _destination != null
-                                  ? null
-                                  : () => setState(
-                                      () => _showPassword = !_showPassword,
-                                    ),
-                              icon: Icon(
-                                _showPassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
-                              ),
-                            ),
-                          ),
+                        Expanded(child: Divider(color: context.creo.appLine)),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    _GooglePill(onPressed: busy ? null : _startGoogleSignIn),
+                    const SizedBox(height: 32),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          _mode == 'signin'
+                              ? 'New to Creo?'
+                              : 'Already have an account?',
+                          style: text.bodyMedium,
                         ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: _loading || _destination != null
-                                ? null
-                                : _openForgotPassword,
-                            child: Text('Forgot password?'),
-                          ),
-                        ),
-                        CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          controlAffinity: ListTileControlAffinity.leading,
-                          title: Text('Keep me signed in'),
-                          value: _rememberMe,
-                          onChanged: _loading || _destination != null
+                        TextButton(
+                          onPressed: busy
                               ? null
-                              : (v) => setState(() => _rememberMe = v!),
+                              : () => _switchMode(
+                                  _mode == 'signin' ? 'signup' : 'signin',
+                                ),
+                          child: Text(
+                            _mode == 'signin' ? 'Create account' : 'Sign in',
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                )
-              else
-                _SignInOrSignUpForm(
-                  mode: _mode,
-                  emailCtrl: _emailCtrl,
-                  passwordCtrl: _passwordCtrl,
-                  fullNameCtrl: _fullNameCtrl,
-                  brandCtrl: _brandCtrl,
-                  showPassword: _showPassword,
-                  onTogglePassword: () =>
-                      setState(() => _showPassword = !_showPassword),
-                  rememberMe: _rememberMe,
-                  onRememberMeChanged: (v) => setState(() => _rememberMe = v),
-                  termsAccepted: _termsAccepted,
-                  onTermsChanged: (v) => setState(() => _termsAccepted = v),
-                  onForgotPassword: _openForgotPassword,
-                ),
-
-              SizedBox(height: 20),
-
-              // Submit pill (matches SubmitPill from AuthPieces.tsx)
-              _SubmitPill(
-                loading: _loading,
-                onPressed: _loading || _destination != null
-                    ? null
-                    : (_registrationPending ? _handleVerify : _handleSubmit),
-                label: _submitLabel,
-              ),
-              if (_loading && _attempt != null && _mode == 'signin')
-                TextButton(
-                  onPressed: _cancelSignIn,
-                  child: Text('Cancel sign-in'),
-                ),
-
-              // "Waking up server" notice
-              if (_loading && _slowServerWake)
-                Padding(
-                  padding: EdgeInsets.only(top: 10),
-                  child: Text(
-                    'The server was asleep after a quiet spell. Waking it up can take about 30 seconds.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(fontSize: 15),
-                  ),
-                ),
-
-              // "— or —" divider + Google button
-              if (!_registrationPending) ...[
-                SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(child: Divider(color: context.creo.appLine)),
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        'or',
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
-                    ),
-                    Expanded(child: Divider(color: context.creo.appLine)),
                   ],
-                ),
-                SizedBox(height: 20),
-                _GooglePill(
-                  onPressed: _loading || _destination != null
-                      ? null
-                      : _startGoogleSignIn,
-                ),
-              ],
-
-              SizedBox(height: 32),
-
-              // WhatsApp help
-              Center(child: Text('Need a hand?')),
-              TextButton(
-                onPressed: () => launchUrl(
-                  Uri.parse(_kWhatsAppUrl),
-                  mode: LaunchMode.externalApplication,
-                ),
-                child: Text(
-                  'Message us on WhatsApp',
-                  textAlign: TextAlign.center,
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _passwordToggle(bool busy) => IconButton(
+    tooltip: _showPassword ? 'Hide password' : 'Show password',
+    onPressed: busy
+        ? null
+        : () => setState(() => _showPassword = !_showPassword),
+    icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
+  );
+
+  Widget _buildSignInForm(bool busy) {
+    return AutofillGroup(
+      child: Form(
+        key: _signInKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _AuthField(
+              label: 'Email',
+              child: TextFormField(
+                key: const Key('login-email'),
+                controller: _emailCtrl,
+                focusNode: _emailFocus,
+                enabled: !busy,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [
+                  AutofillHints.username,
+                  AutofillHints.email,
+                ],
+                autocorrect: false,
+                textCapitalization: TextCapitalization.none,
+                validator: (v) => validateLoginEmail(v ?? ''),
+                onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
+                decoration: const InputDecoration(
+                  hintText: 'name@brand.com',
+                  errorMaxLines: 4,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _AuthField(
+              label: 'Password',
+              trailing: TextButton(
+                onPressed: busy ? null : _openForgotPassword,
+                child: const Text('Forgot password?'),
+              ),
+              child: TextFormField(
+                key: const Key('login-password'),
+                controller: _passwordCtrl,
+                focusNode: _passwordFocus,
+                enabled: !busy,
+                obscureText: !_showPassword,
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.password],
+                validator: (v) => validateLoginPassword(v ?? ''),
+                onFieldSubmitted: (_) => _signIn(),
+                decoration: InputDecoration(
+                  hintText: 'Your password',
+                  errorMaxLines: 4,
+                  suffixIcon: _passwordToggle(busy),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSignUpForm(bool busy) {
+    Widget field(
+      String label,
+      TextEditingController ctrl,
+      String hint, {
+      TextInputType keyboard = TextInputType.text,
+      Iterable<String>? autofill,
+      bool password = false,
+      String? note,
+    }) => Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: _AuthField(
+        label: label,
+        trailing: note == null
+            ? null
+            : Text(note, style: Theme.of(context).textTheme.bodySmall),
+        child: TextField(
+          controller: ctrl,
+          enabled: !busy,
+          keyboardType: keyboard,
+          autofillHints: autofill,
+          obscureText: password && !_showPassword,
+          autocorrect: !password,
+          enableSuggestions: !password,
+          textInputAction: password
+              ? TextInputAction.done
+              : TextInputAction.next,
+          onSubmitted: password ? (_) => _handleSubmit() : null,
+          decoration: InputDecoration(
+            hintText: hint,
+            suffixIcon: password ? _passwordToggle(busy) : null,
+          ),
+        ),
+      ),
+    );
+
+    return AutofillGroup(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          field(
+            'Full name',
+            _fullNameCtrl,
+            'Your full name',
+            autofill: const [AutofillHints.name],
+          ),
+          field(
+            'Brand name',
+            _brandCtrl,
+            'Your brand',
+            note: 'Optional',
+            autofill: const [AutofillHints.organizationName],
+          ),
+          field(
+            'Email',
+            _emailCtrl,
+            'name@brand.com',
+            keyboard: TextInputType.emailAddress,
+            autofill: const [AutofillHints.email],
+          ),
+          field(
+            'Password',
+            _passwordCtrl,
+            'Choose a password',
+            password: true,
+            note: '8+ characters',
+            autofill: const [AutofillHints.newPassword],
+          ),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _termsAccepted,
+            onChanged: busy
+                ? null
+                : (v) => setState(() => _termsAccepted = v ?? false),
+            title: Text(
+              'I accept the Terms and Privacy Policy',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1040,417 +821,28 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
 // Sub-widgets
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _Wordmark extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
-        } else {
-          Navigator.of(context).pushReplacementNamed('/');
-        }
-      },
-      child: RichText(
-        text: TextSpan(
-          style: TextStyle(
-            fontFamily: 'Inter',
-            fontSize: 26,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -1.0,
-            color: Color(0xFF1A120C),
-          ),
-          children: [
-            TextSpan(text: 'creo'),
-            WidgetSpan(
-              alignment: PlaceholderAlignment.baseline,
-              baseline: TextBaseline.alphabetic,
-              child: Container(
-                width: 7,
-                height: 7,
-                margin: EdgeInsets.only(left: 1, bottom: 2),
-                decoration: BoxDecoration(
-                  color: Color(0xFF1A120C),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BackToSiteButton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: () {
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
-        } else {
-          Navigator.of(context).pushReplacementNamed('/');
-        }
-      },
-      icon: Icon(Icons.arrow_back, size: 14, color: Color(0xFF1A120C)),
-      label: Text(
-        'Back to site',
-        style: TextStyle(fontSize: 15, color: Color(0xFF1A120C)),
-      ),
-      style: OutlinedButton.styleFrom(
-        side: BorderSide(
-          color: Color(0xFF1A120C).withValues(alpha: 0.15),
-          width: 2,
-        ),
-        shape: StadiumBorder(),
-        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-    );
-  }
-}
-
-class _BulletItem extends StatelessWidget {
-  final String text;
-  const _BulletItem({required this.text});
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Icon(
-            Icons.check,
-            size: 15,
-            color: Color(0xFF1A120C).withValues(alpha: 0.75),
-            weight: 700,
-          ),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF1A120C),
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Mode toggle ──────────────────────────────────────────────────────────────
-class _ModeToggle extends StatelessWidget {
-  final String selected;
-  final void Function(String) onSelect;
-  const _ModeToggle({required this.selected, required this.onSelect});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: context.creo.appLine, width: 2),
-      ),
-      child: Row(
-        children: [
-          _ToggleOption('Sign in', 'signin', selected, onSelect),
-          _ToggleOption('Create account', 'signup', selected, onSelect),
-        ],
-      ),
-    );
-  }
-}
-
-class _ToggleOption extends StatelessWidget {
-  final String label;
-  final String value;
-  final String selected;
-  final void Function(String) onSelect;
-  const _ToggleOption(this.label, this.value, this.selected, this.onSelect);
-
-  @override
-  Widget build(BuildContext context) {
-    final active = selected == value;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => onSelect(value),
-        child: AnimatedContainer(
-          duration: MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : Duration(milliseconds: 180),
-          curve: Curves.easeOutQuart,
-          constraints: BoxConstraints(minHeight: 48),
-          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          decoration: BoxDecoration(
-            color: active ? context.creo.appInk : Colors.transparent,
-            borderRadius: BorderRadius.circular(99),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: active ? context.creo.appBase : context.creo.appMist,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Sign-in / Sign-up form ───────────────────────────────────────────────────
-class _SignInOrSignUpForm extends StatelessWidget {
-  final String mode;
-  final TextEditingController emailCtrl, passwordCtrl, fullNameCtrl, brandCtrl;
-  final bool showPassword;
-  final VoidCallback onTogglePassword;
-  final bool rememberMe;
-  final void Function(bool) onRememberMeChanged;
-  final bool termsAccepted;
-  final void Function(bool) onTermsChanged;
-  final VoidCallback onForgotPassword;
-
-  const _SignInOrSignUpForm({
-    required this.mode,
-    required this.emailCtrl,
-    required this.passwordCtrl,
-    required this.fullNameCtrl,
-    required this.brandCtrl,
-    required this.showPassword,
-    required this.onTogglePassword,
-    required this.rememberMe,
-    required this.onRememberMeChanged,
-    required this.termsAccepted,
-    required this.onTermsChanged,
-    required this.onForgotPassword,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isSignUp = mode == 'signup';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (isSignUp) ...[
-          _AuthField(
-            label: 'Full name',
-            child: _textInput(
-              context,
-              fullNameCtrl,
-              hint: 'Your full name',
-              textInputAction: TextInputAction.next,
-            ),
-          ),
-          SizedBox(height: 24),
-          _AuthField(
-            label: 'Brand name',
-            hint: 'Optional',
-            child: _textInput(
-              context,
-              brandCtrl,
-              hint: 'Your brand',
-              textInputAction: TextInputAction.next,
-            ),
-          ),
-          SizedBox(height: 24),
-        ],
-        _AuthField(
-          label: 'Work email',
-          child: _textInput(
-            context,
-            emailCtrl,
-            hint: 'name@brand.com',
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-          ),
-        ),
-        SizedBox(height: 24),
-        _AuthField(
-          label: isSignUp ? 'Create password' : 'Password',
-          hint: isSignUp ? '8+ characters' : null,
-          hintWidget: !isSignUp
-              ? GestureDetector(
-                  onTap: onForgotPassword,
-                  child: Text(
-                    'Forgot password?',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: context.creo.accent,
-                      fontWeight: FontWeight.w600,
-                      decoration: TextDecoration.underline,
-                      decorationColor: context.creo.accent.withValues(
-                        alpha: 0.4,
-                      ),
-                    ),
-                  ),
-                )
-              : null,
-          child: Row(
-            children: [
-              Expanded(
-                child: _textInput(
-                  context,
-                  passwordCtrl,
-                  hint: isSignUp ? 'Choose a password' : '••••••••',
-                  obscure: !showPassword,
-                  textInputAction: TextInputAction.done,
-                ),
-              ),
-              GestureDetector(
-                onTap: onTogglePassword,
-                child: Padding(
-                  padding: EdgeInsets.only(left: 8),
-                  child: Icon(
-                    showPassword ? Icons.visibility_off : Icons.visibility,
-                    size: 20,
-                    color: context.creo.appMist,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: 20),
-        // Checkbox: remember me (signin) | accept terms (signup)
-        GestureDetector(
-          onTap: () => isSignUp
-              ? onTermsChanged(!termsAccepted)
-              : onRememberMeChanged(!rememberMe),
-          child: Row(
-            children: [
-              Checkbox(
-                value: isSignUp ? termsAccepted : rememberMe,
-                onChanged: (v) =>
-                    isSignUp ? onTermsChanged(v!) : onRememberMeChanged(v!),
-              ),
-              SizedBox(width: 10),
-              if (isSignUp)
-                Expanded(
-                  child: RichText(
-                    text: TextSpan(
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 15,
-                        color: context.creo.appMist,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      children: [
-                        TextSpan(text: 'I accept the '),
-                        TextSpan(
-                          text: 'Terms',
-                          style: TextStyle(
-                            color: context.creo.appInk,
-                            decoration: TextDecoration.underline,
-                            decorationColor: context.creo.appInk.withValues(
-                              alpha: 0.3,
-                            ),
-                          ),
-                        ),
-                        TextSpan(text: ' and '),
-                        TextSpan(
-                          text: 'Privacy Policy',
-                          style: TextStyle(
-                            color: context.creo.appInk,
-                            decoration: TextDecoration.underline,
-                            decorationColor: context.creo.appInk.withValues(
-                              alpha: 0.3,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                Text(
-                  'Keep me signed in',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 15,
-                    color: context.creo.appMist,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _textInput(
-    BuildContext context,
-    TextEditingController ctrl, {
-    required String hint,
-    TextInputType keyboardType = TextInputType.text,
-    bool obscure = false,
-    TextInputAction textInputAction = TextInputAction.done,
-  }) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: keyboardType,
-      obscureText: obscure,
-      textInputAction: textInputAction,
-      style: TextStyle(
-        fontFamily: 'Inter',
-        fontSize: 20,
-        fontWeight: FontWeight.w500,
-        color: context.creo.appInk,
-        letterSpacing: -0.4,
-      ),
-      decoration: InputDecoration(hintText: hint),
-    );
-  }
-}
-
 class _AuthField extends StatelessWidget {
   final String label;
-  final String? hint;
-  final Widget? hintWidget;
+  final Widget? trailing;
   final Widget child;
-  const _AuthField({
-    required this.label,
-    required this.child,
-    this.hint,
-    this.hintWidget,
-  });
+  const _AuthField({required this.label, required this.child, this.trailing});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 12,
-          runSpacing: 8,
-          children: [
-            Text(
-              label.toUpperCase(),
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
-            if (hintWidget != null)
-              hintWidget!
-            else if (hint != null)
-              Text(
-                hint!,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontSize: 14),
-              ),
-          ],
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            children: [
+              Text(label, style: Theme.of(context).textTheme.titleSmall),
+              ?trailing,
+            ],
+          ),
         ),
         child,
       ],
@@ -1535,7 +927,7 @@ class _VerifyForm extends StatelessWidget {
   }
 }
 
-// ── SubmitPill (matches SubmitPill.tsx) ──────────────────────────────────────
+// ── Primary submit button ────────────────────────────────────────────────────
 class _SubmitPill extends StatelessWidget {
   final String label;
   final bool loading;
@@ -1548,57 +940,27 @@ class _SubmitPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: BoxConstraints(minHeight: 56),
-      child: ElevatedButton(
-        onPressed: onPressed,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: context.creo.accent,
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: loading
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: MediaQuery.disableAnimationsOf(context)
-                          ? Icon(
-                              Icons.hourglass_top,
-                              size: 20,
-                              color: context.creo.onAccent,
-                            )
-                          : CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation(
-                                context.creo.onAccent,
-                              ),
-                            ),
-                    )
-                  : Icon(
-                      Icons.arrow_forward,
-                      size: 20,
-                      color: context.creo.onAccent,
+    final color = context.creo.onAccent;
+    return ElevatedButton(
+      onPressed: onPressed,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (loading) ...[
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: MediaQuery.disableAnimationsOf(context)
+                  ? Icon(Icons.hourglass_top, size: 18, color: color)
+                  : CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(color),
                     ),
             ),
+            const SizedBox(width: 12),
           ],
-        ),
+          Flexible(child: Text(label, textAlign: TextAlign.center)),
+        ],
       ),
     );
   }
