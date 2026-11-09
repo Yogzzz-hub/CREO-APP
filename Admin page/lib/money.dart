@@ -52,7 +52,7 @@ class _RevenueState extends State<_Revenue> {
           tile('Client', s: v.client),
           tile('Covers', s: v.scope),
           tile('Payment method', s: v.method),
-          tile('Amount', trail: Text(inr(v.amount), style: inter(18, w: FontWeight.w600))),
+          tile('Amount', trail: Text(inr(v.amount), style: inter(18, w: FontWeight.w500))),
         ]),
       ]);
 
@@ -71,29 +71,29 @@ class _RevenueState extends State<_Revenue> {
       Panel(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Monthly revenue from plans', style: inter(14, c: C.mist)),
-        Text(inr(mrr), style: inter(30, w: FontWeight.w600)),
+        Text(inr(mrr), style: inter(30, w: FontWeight.w500)),
         Text(paidClients.isEmpty ? 'No paying clients yet' : '${paidClients.length} paying clients · average ${inr(mrr ~/ paidClients.length)}',
             style: inter(14, c: C.mist)),
         if (top > 0) ...[
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
           Text('Invoiced per month', style: inter(13, c: C.mist)),
           const SizedBox(height: 8),
           SizedBox(
             height: 136,
             child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
               for (final (i, (m, v)) in months.indexed) ...[
-                if (i > 0) const SizedBox(width: 10),
+                if (i > 0) const SizedBox(width: 12),
                 Expanded(
                     child: Semantics(
                   label: '$m ${inr(v)}',
                   child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-                    Text(v == 0 ? '' : short(v), style: inter(11, w: i == 5 ? FontWeight.w600 : FontWeight.w400, c: i == 5 ? C.text : C.mist)),
+                    Text(v == 0 ? '' : short(v), style: inter(11, w: i == 5 ? FontWeight.w500 : FontWeight.w400, c: i == 5 ? C.text : C.mist)),
                     const SizedBox(height: 4),
                     Container(
                       height: 90 * v / top,
                       decoration: BoxDecoration(color: i == 5 ? C.accent : C.raised, borderRadius: const BorderRadius.vertical(top: Radius.circular(6))),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Text(m, style: inter(12, c: C.mist)),
                   ]),
                 )),
@@ -110,7 +110,7 @@ class _RevenueState extends State<_Revenue> {
       SearchBox('Search client or invoice number', (v) => setState(() => q = v)),
       Chips(labels: ['All', ...payMethods], selected: pick, onSelect: (i) => setState(() => pick = i)),
       if (list.isEmpty)
-        empty('No invoices yet.')
+        empty('No invoices yet')
       else
         Rows([for (final v in list) tile(v.client, s: '#${v.number} · ${dm(v.date)} · ${v.method}', trail: money(v.amount), onTap: () => openInvoice(v))]),
       twoButtons(
@@ -188,9 +188,9 @@ class _Plans extends StatelessWidget {
         Panel(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Status(S.wait, 'Proposal waiting'),
-          const SizedBox(height: 6),
-          Text('${n.client}: ${n.fromPlan} to ${n.toPlan}', style: inter(16, w: FontWeight.w600)),
-          const SizedBox(height: 3),
+          const SizedBox(height: 8),
+          Text('${n.client}: ${n.fromPlan} to ${n.toPlan}', style: inter(16, w: FontWeight.w500)),
+          const SizedBox(height: 4),
           Text('${inr(n.proposed)} a month${planNamed(n.toPlan) == null ? '' : ' instead of ${inr(planNamed(n.toPlan)!.price)}'}', style: inter(14, c: C.mist2)),
           if (n.notes.isNotEmpty) Text(n.notes, style: inter(14, c: C.mist)),
           actions([
@@ -204,8 +204,8 @@ class _Plans extends StatelessWidget {
         Panel(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Expanded(child: Text(p.name, style: inter(16, w: FontWeight.w600))),
-            Text(inr(p.price), style: inter(18, w: FontWeight.w600)),
+            Expanded(child: Text(p.name, style: inter(16, w: FontWeight.w500))),
+            Text(inr(p.price), style: inter(18, w: FontWeight.w500)),
           ]),
           const SizedBox(height: 4),
           Text('${p.includes} · ${clientsOn(p.name)} client${clientsOn(p.name) == 1 ? '' : 's'}', style: inter(14, c: C.mist)),
@@ -268,7 +268,7 @@ class _SalesState extends State<_Sales> {
       SearchBox('Search company or salesperson', (v) => setState(() => q = v)),
       Chips(labels: ['All ${leads.length}', for (final s in leadStages) '$s ${leads.where((l) => l.stage == s).length}'], selected: pick, onSelect: (i) => setState(() => pick = i)),
       if (list.isEmpty)
-        empty('No leads here yet.')
+        empty('No leads here yet')
       else
         Rows([
           for (final l in list)

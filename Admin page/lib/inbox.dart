@@ -41,7 +41,7 @@ class _ThreadState extends State<_Thread> {
   Widget build(BuildContext context) {
     final ch = widget.channel;
     return Scaffold(
-      appBar: AppBar(title: Text(ch.group ? '# ${ch.name}' : ch.name, style: inter(18, w: FontWeight.w600))),
+      appBar: AppBar(title: Text(ch.group ? '# ${ch.name}' : ch.name, style: inter(18, w: FontWeight.w500))),
       body: Column(children: [
         Expanded(
           child: ListenableBuilder(
@@ -55,10 +55,10 @@ class _ThreadState extends State<_Thread> {
                         child: Container(
                           constraints: const BoxConstraints(maxWidth: 300),
                           margin: const EdgeInsets.only(top: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(color: m.from == me.name ? C.raised : C.surface, borderRadius: BorderRadius.circular(16)),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            if (m.from != me.name) Text(m.from, style: inter(13, w: FontWeight.w600, c: C.accent2)),
+                            if (m.from != me.name) Text(m.from, style: inter(13, w: FontWeight.w500, c: C.accent2)),
                             Text(m.text, style: inter(16)),
                             Text(ago(m.at), style: inter(12, c: C.mist)),
                           ]),
@@ -78,7 +78,7 @@ class _ThreadState extends State<_Thread> {
                       style: inter(16),
                       onSubmitted: (_) => send(),
                       decoration: const InputDecoration(
-                          hintText: 'Type a message', border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(999)), borderSide: BorderSide.none)))),
+                          hintText: 'Type a message', border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10)), borderSide: BorderSide.none)))),
               IconButton(tooltip: 'Send', onPressed: send, icon: Icon(Icons.send, color: C.accent)),
             ]),
           ),
@@ -134,8 +134,8 @@ class _ChatState extends State<_Chat> {
                 width: 40,
                 height: 40,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(color: C.raised, borderRadius: BorderRadius.circular(12)),
-                child: Text('#', style: inter(18, w: FontWeight.w600, c: C.mist2)))
+                decoration: BoxDecoration(color: C.raised, borderRadius: BorderRadius.circular(10)),
+                child: Text('#', style: inter(18, w: FontWeight.w500, c: C.mist2)))
             : Initials(c.name),
         trail: c.messages.isEmpty ? null : Text(ago(c.messages.last.at), style: inter(12, c: C.mist)),
         onTap: () => openThread(context, c));
@@ -143,9 +143,9 @@ class _ChatState extends State<_Chat> {
     return page([
       SearchBox('Search chats', (v) => setState(() => q = v)),
       sec('Groups'),
-      if (groups.isEmpty) empty('No groups yet.') else Rows([for (final c in groups) row(c)]),
+      if (groups.isEmpty) empty('No groups yet') else Rows([for (final c in groups) row(c)]),
       sec('Direct messages'),
-      if (dms.isEmpty) empty('No messages yet.') else Rows([for (final c in dms) row(c)]),
+      if (dms.isEmpty) empty('No messages yet') else Rows([for (final c in dms) row(c)]),
       twoButtons(
         OutlinedButton(onPressed: newGroup, child: const Text('New group')),
         FilledButton(onPressed: newMessage, child: const Text('New message')),
@@ -169,7 +169,7 @@ void openTicket(BuildContext context, Ticket t) => openPage(context, 'Ticket #${
       Status(t.closed ? S.ok : prioStatus(t.priority), t.closed ? 'Closed' : t.priority),
       Rows([tile('Assigned to', s: t.agent.isEmpty ? 'Nobody yet' : t.agent)]),
       sec('Replies'),
-      if (t.replies.isEmpty) empty('No replies yet.') else Rows([for (final r in t.replies) tile(r.text, s: '${r.from} · ${ago(r.at)} ago')]),
+      if (t.replies.isEmpty) empty('No replies yet') else Rows([for (final r in t.replies) tile(r.text, s: '${r.from} · ${ago(r.at)} ago')]),
       actions([
         if (!t.closed)
           small('Reply', () async {
@@ -221,7 +221,7 @@ class _SupportState extends State<_Support> {
       Chips(labels: ['Active ${openTickets.length}', 'Closed ${tickets.length - openTickets.length}'], selected: state, onSelect: (i) => setState(() => state = i)),
       Chips(labels: const ['All', ...priorities], selected: prio, onSelect: (i) => setState(() => prio = i)),
       if (list.isEmpty)
-        empty(state == 0 ? 'No open tickets.' : 'No closed tickets.')
+        empty(state == 0 ? 'No open tickets' : 'No closed tickets')
       else
         Rows([
           for (final t in list)

@@ -83,10 +83,10 @@ class _ShellState extends State<Shell> {
           alignment: Alignment.centerLeft,
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Text.rich(TextSpan(children: [
-              TextSpan(text: 'creo', style: inter(22, w: FontWeight.w700)),
-              TextSpan(text: '.', style: inter(22, w: FontWeight.w700, c: C.accent)),
+              TextSpan(text: 'creo', style: inter(22, w: FontWeight.w500)),
+              TextSpan(text: '.', style: inter(22, w: FontWeight.w500, c: C.accent)),
             ])),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Text('Admin', style: inter(14, w: FontWeight.w500, c: C.mist)),
           ]),
         ),
@@ -112,7 +112,7 @@ class _ShellState extends State<Shell> {
             child: IconButton(
               tooltip: 'Profile',
               onPressed: () => go(5),
-              icon: CircleAvatar(radius: 18, backgroundColor: C.raised, child: Text(initials(me.name), style: inter(13, w: FontWeight.w600, c: C.mist2))),
+              icon: CircleAvatar(radius: 18, backgroundColor: C.raised, child: Text(initials(me.name), style: inter(13, w: FontWeight.w500, c: C.mist2))),
             ),
           ),
         ],
@@ -131,7 +131,8 @@ class _ShellState extends State<Shell> {
         onDestinationSelected: (i) => setState(() => tab = i),
         destinations: [
           for (final (icon, label, n) in tabs)
-            NavigationDestination(icon: Badge(isLabelVisible: n > 0, label: Text('$n'), child: Icon(icon)), label: label, tooltip: ''),
+            // A small dot, not a number: the bell and each tab's own page already give the count.
+            NavigationDestination(icon: Badge(isLabelVisible: n > 0, smallSize: 8, child: Icon(icon)), label: label, tooltip: ''),
         ],
       ),
     );
@@ -148,16 +149,16 @@ class Home extends StatelessWidget {
     final leave = pendingLeaves.firstOrNull;
     final n = decisionCount;
     Widget decision(IconData icon, Color color, String t, String s, int tab, int sub) => Padding(
-          padding: const EdgeInsets.only(top: 10),
+          padding: const EdgeInsets.only(top: 12),
           child: Material(
             color: C.surface,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               leading: Container(
-                  width: 40, height: 40, decoration: BoxDecoration(color: C.raised, borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: color)),
-              title: Text(t, style: inter(16, w: FontWeight.w600)),
+                  width: 40, height: 40, decoration: BoxDecoration(color: C.raised, borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: color)),
+              title: Text(t, style: inter(16, w: FontWeight.w500)),
               subtitle: Text(s),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => go(tab, sub),
@@ -166,76 +167,80 @@ class Home extends StatelessWidget {
         );
 
     // One card per area of the web admin dashboard: its key numbers and a link to each of its pages.
-    Widget section(IconData icon, String name, String about, List<(String, String)> nums, List<(String, int, int)> links) => Panel(
+    Widget section(String name, String about, List<(String, String)> nums, List<(String, int, int)> links) => Panel(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-                width: 40, height: 40, decoration: BoxDecoration(color: C.raised, borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: C.accent)),
-            const SizedBox(width: 12),
-            Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: inter(18, w: FontWeight.w600)),
-              Text(about, style: inter(14, c: C.mist)),
-            ])),
-          ]),
-          const SizedBox(height: 14),
+          Text(name, style: inter(18, w: FontWeight.w500)),
+          const SizedBox(height: 4),
+          Text(about, style: inter(14, c: C.mist)),
+          const SizedBox(height: 16),
           Row(children: [
             for (final (k, v) in nums)
               Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(k, style: inter(13, c: C.mist)),
-                const SizedBox(height: 2),
-                FittedBox(fit: BoxFit.scaleDown, child: Text(v, style: inter(20, w: FontWeight.w600))),
+                const SizedBox(height: 4),
+                FittedBox(fit: BoxFit.scaleDown, child: Text(v, style: inter(20, w: FontWeight.w500))),
               ])),
           ]),
-          const SizedBox(height: 14),
-          Wrap(spacing: 8, runSpacing: 8, children: [
+          const SizedBox(height: 12),
+          const Divider(),
+          // Quiet text links to each page of the area, on one line under a hairline.
+          // Shifted left by the button padding so the first label lines up with the title.
+          Transform.translate(
+              offset: const Offset(-8, 0),
+              child: Wrap(children: [
             for (final (label, t, s) in links)
-              OutlinedButton(
+              TextButton(
                 onPressed: () => go(t, s),
-                style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48), padding: const EdgeInsets.symmetric(horizontal: 16), textStyle: inter(14, w: FontWeight.w600)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [Text(label), const Icon(Icons.chevron_right, size: 18)]),
+                style: TextButton.styleFrom(
+                    foregroundColor: C.mist2,
+                    minimumSize: const Size(48, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    textStyle: inter(14, w: FontWeight.w500)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [Text(label), Icon(Icons.chevron_right, size: 16, color: C.mist)]),
               ),
-          ]),
+          ])),
         ]));
 
     final now = DateTime.now();
     final scheduled = deliverables.where((d) => d.date.year == now.year && d.date.month == now.month).length;
     return page([
-      title('Good morning'),
+      title('Today'),
       sub('${shortDate(DateTime.now())} · ${n == 0 ? 'nothing needs you' : '$n thing${n == 1 ? '' : 's'} need you'}'),
       if (n > 0) sec('Needs your decision'),
-      if (review.isNotEmpty) decision(Icons.check_box_outlined, C.accent, 'Review ${review.length} drafts', formatCounts(review), 1, 0),
+      if (review.isNotEmpty) decision(Icons.check_box_outlined, C.mist2, 'Review ${review.length} drafts', formatCounts(review), 1, 0),
       if (leave != null)
         decision(Icons.event_outlined, C.mist2, pendingLeaves.length == 1 ? '${leave.who.split(' ').first} asked for leave' : '${pendingLeaves.length} leave requests',
             '${dm(leave.start)} · ${leave.days} day${leave.days == 1 ? '' : 's'}', 3, 2),
       if (waitingProposals.isNotEmpty)
-        decision(Icons.request_quote_outlined, C.accent2, '${waitingProposals.length} plan proposal${waitingProposals.length == 1 ? '' : 's'} waiting',
+        decision(Icons.request_quote_outlined, C.mist2, '${waitingProposals.length} plan proposal${waitingProposals.length == 1 ? '' : 's'} waiting',
             '${waitingProposals.first.client}: ${inr(waitingProposals.first.proposed)} a month', 2, 1),
       if (overloaded.isNotEmpty)
         decision(Icons.error_outline, C.rose, '${overloaded.length} people are overloaded', '${overloaded.first.$1.split(' ').first} has ${overloaded.first.$2} tasks open', 3, 1),
       sec('Your agency'),
-      section(Icons.payments_outlined, 'Revenue', 'Monthly revenue, plans and sales', [
+      section('Revenue', 'Monthly revenue, plans and sales', [
         ('This month', inr(mrr)),
         ('Paying', '${paidClients.length}'),
         ('Average', paidClients.isEmpty ? '—' : inr(mrr ~/ paidClients.length)),
       ], [('Revenue', 2, 0), ('Plans', 2, 1), ('Sales', 2, 2)]),
-      section(Icons.group_outlined, 'Team', 'Pods, workload and leave', [
+      section('Team', 'Pods, workload and leave', [
         ('Pods', '${pods.length}'),
         ('People', '${peopleOf(Kind.staff).length}'),
         ('Leave requests', '${pendingLeaves.length}'),
       ], [('Pods', 3, 0), ('Workload', 3, 1), ('Leave', 3, 2)]),
-      section(Icons.layers_outlined, 'Content', 'Drafts, schedule, tasks and Instagram', [
+      section('Content', 'Drafts, schedule, tasks and Instagram', [
         ('To review', '${review.length}'),
         ('Scheduled', '$scheduled'),
         ('Tasks to do', '${tasksIn(Stage.todo).length}'),
       ], [('Review', 1, 0), ('Calendar', 1, 1), ('Tasks', 1, 2), ('Publish', 1, 3)]),
-      section(Icons.storefront_outlined, 'Clients', 'Paid and unpaid accounts', [
+      section('Clients', 'Paid and unpaid accounts', [
         ('Paid', '${paidClients.length}'),
         ('Not paid', '${unpaidClients.length}'),
         ('Total', '${paidClients.length + unpaidClients.length}'),
       ], [('Clients', 3, 3)]),
-      section(Icons.support_agent_outlined, 'Support', 'Client tickets and team chat', [
+      section('Support', 'Client tickets and team chat', [
         ('Open', '${openTickets.length}'),
         ('Solved today', '$solvedToday'),
         ('First reply', avgFirstReply),

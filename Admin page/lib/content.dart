@@ -65,12 +65,12 @@ S _draftStatus(Draft d) => switch (d) { Draft.review => S.wait, Draft.revision =
 void _openDraft(BuildContext context, Deliverable d) => openPage(context, d.title, (c) => [
       title(d.title),
       sub('${d.client} · ${d.format}${d.pod.isEmpty ? '' : ' · ${d.pod}'}'),
-      const SizedBox(height: 10),
+      const SizedBox(height: 12),
       Status(_draftStatus(d.state), _draftNames[d.state.index]),
       Panel(child: Text('Posts on ${longDate(d.date)}', style: inter(16))),
       actions(_draftActions(c, d)),
       sec('Notes'),
-      if (d.notes.isEmpty) empty('No notes yet.') else Rows([for (final n in d.notes) tile(n)]),
+      if (d.notes.isEmpty) empty('No notes yet') else Rows([for (final n in d.notes) tile(n)]),
     ]);
 
 class _Review extends StatefulWidget {
@@ -92,7 +92,7 @@ class _ReviewState extends State<_Review> {
         selected: pick,
         onSelect: (i) => setState(() => pick = i),
       ),
-      if (list.isEmpty) empty('No drafts here yet.'),
+      if (list.isEmpty) empty('No drafts here yet'),
       for (final (i, d) in list.indexed)
         Panel(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -104,13 +104,13 @@ class _ReviewState extends State<_Review> {
                 height: 56,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(color: C.raised, borderRadius: BorderRadius.circular(10)),
-                child: Text(d.format == 'Post' ? '4:5' : '9:16', style: inter(11, w: FontWeight.w600, c: C.mist)),
+                child: Text(d.format == 'Post' ? '4:5' : '9:16', style: inter(11, w: FontWeight.w500, c: C.mist)),
               ),
               const SizedBox(width: 12),
               Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(d.title, style: inter(16, w: FontWeight.w600)),
-                const SizedBox(height: 3),
+                Text(d.title, style: inter(16, w: FontWeight.w500)),
+                const SizedBox(height: 4),
                 Text('${d.client} · ${d.format} · ${dm(d.date)}${d.notes.isEmpty ? '' : ' · ${d.notes.length} notes'}', style: inter(14, c: C.mist)),
               ])),
               Icon(Icons.chevron_right, color: C.mist),
@@ -141,15 +141,15 @@ class _CalendarState extends State<_Calendar> {
       button: true,
       label: '${longDate(d)}, $n posts',
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         onTap: () => setState(() => day = d),
         child: Container(
           height: 52,
           margin: const EdgeInsets.all(2),
-          decoration: BoxDecoration(color: on ? C.text : null, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: on ? C.text : null, borderRadius: BorderRadius.circular(8)),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text('${d.day}', style: inter(15, c: on ? C.ground : C.text)),
-            Text(n == 0 ? ' ' : '$n', style: inter(11, w: FontWeight.w600, c: on ? C.ground : C.accent)),
+            Text(n == 0 ? ' ' : '$n', style: inter(11, w: FontWeight.w500, c: on ? C.ground : C.accent)),
           ]),
         ),
       ),
@@ -168,7 +168,7 @@ class _CalendarState extends State<_Calendar> {
         s: '${d.client} · ${d.format}', trail: Status(_draftStatus(d.state), _draftNames[d.state.index]), onTap: () => _openDraft(context, d));
     return page([
       const SizedBox(height: 4),
-      Kv([for (final f in formats) ('${f}s', '${inMonth.where((d) => d.format == f).length}')]),
+      Kv([for (final f in formats) (f == 'Story' ? 'Stories' : '${f}s', '${inMonth.where((d) => d.format == f).length}')]),
       Chips(labels: const ['Month', 'Agenda'], selected: agenda ? 1 : 0, onSelect: (i) => setState(() => agenda = i == 1)),
       if (!agenda)
         Padding(
@@ -178,7 +178,7 @@ class _CalendarState extends State<_Calendar> {
                 tooltip: 'Back',
                 onPressed: () => setState(() => day = DateTime(day.year, day.month - 1, 1)),
                 icon: const Icon(Icons.chevron_left)),
-            Expanded(child: Text('${monthName(day)} ${day.year}', textAlign: TextAlign.center, style: inter(16, w: FontWeight.w600))),
+            Expanded(child: Text('${monthName(day)} ${day.year}', textAlign: TextAlign.center, style: inter(16, w: FontWeight.w500))),
             IconButton(
                 tooltip: 'Next',
                 onPressed: () => setState(() => day = DateTime(day.year, day.month + 1, 1)),
@@ -198,10 +198,10 @@ class _CalendarState extends State<_Calendar> {
           ]),
       if (!agenda) ...[
         sec('${longDate(day)} · ${ofDay.length} items'),
-        if (ofDay.isEmpty) empty('Nothing scheduled.') else Rows([for (final d in ofDay) dayRow(d)]),
+        if (ofDay.isEmpty) empty('Nothing scheduled') else Rows([for (final d in ofDay) dayRow(d)]),
       ] else ...[
         sec('Coming up'),
-        if (upcoming.isEmpty) empty('Nothing scheduled.') else Rows([for (final d in upcoming) tile(d.title, s: '${dm(d.date)} · ${d.client} · ${d.format}', onTap: () => _openDraft(context, d))]),
+        if (upcoming.isEmpty) empty('Nothing scheduled') else Rows([for (final d in upcoming) tile(d.title, s: '${dm(d.date)} · ${d.client} · ${d.format}', onTap: () => _openDraft(context, d))]),
       ],
       mainButton('Schedule a post', () => newDraft(context, on: agenda ? null : day)),
     ]);
@@ -262,7 +262,7 @@ class _TasksState extends State<_Tasks> {
         onSelect: (i) => setState(() => pick = i),
       ),
       if (list.isEmpty)
-        empty('No tasks here yet.')
+        empty('No tasks here yet')
       else
         Rows([
           for (final t in list)
@@ -298,7 +298,7 @@ class _PublishState extends State<_Publish> {
   void openPost(Post p) => openPage(context, p.title, (c) => [
         title(p.title),
         sub('${p.client} · ${longDate(p.when)}'),
-        Panel(child: Text(p.status, style: inter(16, w: FontWeight.w600))),
+        Panel(child: Text(p.status, style: inter(16, w: FontWeight.w500))),
         // Published and Canceled are final: nothing can move them back.
         if (p.finished)
           Padding(padding: const EdgeInsets.only(top: 12), child: Text('This post is ${p.status.toLowerCase()}. No more changes.', style: inter(15, c: C.mist)))
@@ -327,7 +327,7 @@ class _PublishState extends State<_Publish> {
         Panel(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Status(S.bad, 'Failed to publish'),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text('${p.title} · ${p.client} · ${dm(p.when)}', style: inter(15, c: C.mist2)),
           actions([small('Retry', () => save(() => p.status = 'Scheduled'), filled: true)]),
         ])),

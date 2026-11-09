@@ -49,12 +49,12 @@ void openPerson(BuildContext context, Person p) => openPage(context, p.name, (c)
       Center(
           child: Column(children: [
         const SizedBox(height: 8),
-        CircleAvatar(radius: 36, backgroundColor: C.raised, child: Text(initials(p.name), style: inter(24, w: FontWeight.w600, c: C.mist2))),
-        const SizedBox(height: 10),
-        Text(p.name, style: inter(22, w: FontWeight.w600)),
+        CircleAvatar(radius: 36, backgroundColor: C.raised, child: Text(initials(p.name), style: inter(24, w: FontWeight.w500, c: C.mist2))),
+        const SizedBox(height: 12),
+        Text(p.name, style: inter(22, w: FontWeight.w500)),
         Text([if (p.role.isNotEmpty) p.role, switch (p.kind) { Kind.staff => 'Team', Kind.sales => 'Sales', Kind.freelancer => 'Freelancer' }].join(' · '),
             style: inter(15, c: C.mist)),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Status(p.active ? S.ok : S.bad, p.active ? 'Active' : 'Suspended'),
       ])),
       Rows([
@@ -119,11 +119,11 @@ class _Pods extends StatelessWidget {
         meter(podProgress(p), C.accent),
         sec('Members'),
         if (p.members.isEmpty)
-          empty('No members yet.')
+          empty('No members yet')
         else
           Rows([for (final m in p.members) tile(m.name, s: '${m.role.isEmpty ? 'Team' : m.role} · ${openTasks(m.name)} open tasks', lead: Initials(m.name), onTap: () => openPerson(c, m))]),
         sec('Stand-ups'),
-        if (p.standups.isEmpty) empty('No stand-ups logged.') else Rows([for (final s in p.standups.reversed) tile(s)]),
+        if (p.standups.isEmpty) empty('No stand-ups logged') else Rows([for (final s in p.standups.reversed) tile(s)]),
       ]);
 
   @override
@@ -141,14 +141,14 @@ class _Pods extends StatelessWidget {
             Row(children: [
               Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(p.name, style: inter(16, w: FontWeight.w600)),
-                const SizedBox(height: 3),
+                Text(p.name, style: inter(16, w: FontWeight.w500)),
+                const SizedBox(height: 4),
                 Text('Lead ${p.lead} · ${p.members.length} people', style: inter(14, c: C.mist)),
               ])),
               Icon(Icons.chevron_right, color: C.mist),
             ]),
             meter(podProgress(p), C.accent),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text('Sprint ${(podProgress(p) * 100).round()}% done · ${tasks.where((t) => t.pod == p.name && t.stage != Stage.done).length} open tasks',
                 style: inter(14, c: C.mist)),
           ])),
@@ -187,14 +187,14 @@ class _PodLeadState extends State<_PodLead> {
 
   @override
   Widget build(BuildContext context) {
-    if (pods.isEmpty) return page([const SizedBox(height: 14), empty('Create a pod first (Team, Pods).')]);
+    if (pods.isEmpty) return page([const SizedBox(height: 16), empty('Create a pod first (Team, Pods)')]);
     final p = pods[pick.clamp(0, pods.length - 1)];
     final signOff = deliverables.where((d) => d.pod == p.name && d.state == Draft.review).toList();
     return page([
       Chips(labels: podNames, selected: pick.clamp(0, pods.length - 1), onSelect: (i) => setState(() => pick = i)),
       sec('Team and live workload'),
       if (p.members.isEmpty)
-        empty('No members in ${p.name}.')
+        empty('No members in ${p.name}')
       else
         Panel(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -202,7 +202,7 @@ class _PodLeadState extends State<_PodLead> {
               for (final (i, m) in p.members.indexed) ...[
                 if (i > 0) const Divider(),
                 Padding(
-                  padding: const EdgeInsets.only(top: 10),
+                  padding: const EdgeInsets.only(top: 12),
                   child: Row(children: [Expanded(child: Text(m.name, style: inter(16, w: FontWeight.w500))), Text('${openTasks(m.name)} tasks', style: inter(14, c: C.mist))]),
                 ),
                 meter(openTasks(m.name) / maxLoad, openTasks(m.name) >= overloadAt ? C.rose : C.peri),
@@ -211,7 +211,7 @@ class _PodLeadState extends State<_PodLead> {
             ])),
       sec('Waiting for lead sign-off'),
       if (signOff.isEmpty)
-        empty('Nothing to sign off.')
+        empty('Nothing to sign off')
       else
         Rows([
           for (final d in signOff)
@@ -265,7 +265,7 @@ class _Workload extends StatelessWidget {
               for (final (i, (name, n)) in list.indexed) ...[
                 if (i > 0) const Divider(),
                 Padding(
-                  padding: const EdgeInsets.only(top: 10),
+                  padding: const EdgeInsets.only(top: 12),
                   child: Row(children: [
                     Expanded(child: Text(name, style: inter(16, w: FontWeight.w500))),
                     Text('$n tasks${tasks.where((t) => t.who == name && t.stage != Stage.done && t.due.isBefore(today)).isEmpty ? '' : ' · ${tasks.where((t) => t.who == name && t.stage != Stage.done && t.due.isBefore(today)).length} late'}',
@@ -280,11 +280,11 @@ class _Workload extends StatelessWidget {
       const SizedBox(height: 4),
       Kv([('On time', onTimeRate), ('Open tasks', '${tasks.where((t) => t.stage != Stage.done).length}'), ('Redo rate', revisionRate)]),
       sec('Too much work ($overloadAt or more tasks)'),
-      group(busy, C.rose, 'Nobody has too much work.'),
+      group(busy, C.rose, 'Nobody has too much work'),
       sec('Free to take work ($freeAt or fewer)'),
-      group(free, C.peri, 'Nobody is free right now.'),
+      group(free, C.peri, 'Nobody is free right now'),
       sec('Everyone'),
-      group(all, C.mist, 'No team members yet.'),
+      group(all, C.mist, 'No team members yet'),
       if (busy.isNotEmpty && free.isNotEmpty) mainButton("Move 5 of ${busy.first.$1.split(' ').first}'s tasks", () => rebalance(context)),
     ]);
   }
@@ -325,7 +325,7 @@ class _LeaveState extends State<_Leave> {
       const SizedBox(height: 4),
       Kv([('Working', '${staff - onLeaveToday.length}'), ('On leave', '${onLeaveToday.length}'), ('Pending', '${pendingLeaves.length}')]),
       Chips(labels: [for (final t in tabs) '$t ${leavesIn(t).length}'], selected: pick, onSelect: (i) => setState(() => pick = i)),
-      if (list.isEmpty) empty('No ${tabs[pick].toLowerCase()} requests.'),
+      if (list.isEmpty) empty('No ${tabs[pick].toLowerCase()} requests'),
       for (final (i, l) in list.indexed)
         Panel(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -339,7 +339,7 @@ class _LeaveState extends State<_Leave> {
             ]),
         ])),
       sec('On leave today'),
-      if (onLeaveToday.isEmpty) empty('Everyone is in today.') else Rows([for (final l in onLeaveToday) tile(l.who, s: 'Back ${dm(l.end.add(const Duration(days: 1)))}', lead: Initials(l.who))]),
+      if (onLeaveToday.isEmpty) empty('Everyone is in today') else Rows([for (final l in onLeaveToday) tile(l.who, s: 'Back ${dm(l.end.add(const Duration(days: 1)))}', lead: Initials(l.who))]),
       mainButton('Apply for time off', apply),
     ]);
   }
@@ -429,9 +429,9 @@ void openClient(BuildContext context, Client cl) => openPage(context, cl.name, (
           }),
         ]),
         sec('Deliverables'),
-        if (mine.isEmpty) empty('No drafts for ${cl.name} yet.') else Rows([for (final d in mine) tile(d.title, s: '${d.format} · ${dm(d.date)}')]),
+        if (mine.isEmpty) empty('No drafts for ${cl.name} yet') else Rows([for (final d in mine) tile(d.title, s: '${d.format} · ${dm(d.date)}')]),
         sec('Invoices'),
-        if (bills.isEmpty) empty('No invoices yet.') else Rows([for (final v in bills) tile('#${v.number} · ${v.scope}', s: dm(v.date), trail: money(v.amount))]),
+        if (bills.isEmpty) empty('No invoices yet') else Rows([for (final v in bills) tile('#${v.number} · ${v.scope}', s: dm(v.date), trail: money(v.amount))]),
         Padding(
           padding: const EdgeInsets.only(top: 20),
           child: OutlinedButton(
@@ -441,7 +441,7 @@ void openClient(BuildContext context, Client cl) => openPage(context, cl.name, (
                 if (c.mounted) Navigator.pop(c);
               }
             },
-            child: Text('Remove client', style: inter(16, w: FontWeight.w600, c: C.rose)),
+            child: Text('Remove client', style: inter(16, w: FontWeight.w500, c: C.rose)),
           ),
         ),
       ];
@@ -463,7 +463,7 @@ class _ClientsState extends State<_Clients> {
       SearchBox('Search brand, industry or email', (v) => setState(() => q = v)),
       Chips(labels: ['Paid ${paidClients.length}', 'Not paid ${unpaidClients.length}'], selected: pick, onSelect: (i) => setState(() => pick = i)),
       if (list.isEmpty)
-        empty(pick == 0 ? 'No paying clients yet.' : 'No unpaid clients.')
+        empty(pick == 0 ? 'No paying clients yet' : 'No unpaid clients')
       else
         Rows([
           for (final c in list)
@@ -475,8 +475,8 @@ class _ClientsState extends State<_Clients> {
         ]),
       if (pick == 0)
         Padding(
-          padding: const EdgeInsets.fromLTRB(0, 14, 0, 4),
-          child: Row(children: [Expanded(child: Text('Total a month', style: inter(16, c: C.mist))), Text(inr(mrr), style: inter(22, w: FontWeight.w600))]),
+          padding: const EdgeInsets.fromLTRB(0, 16, 0, 4),
+          child: Row(children: [Expanded(child: Text('Total a month', style: inter(16, c: C.mist))), Text(inr(mrr), style: inter(22, w: FontWeight.w500))]),
         ),
       mainButton('Onboard a client', () => onboardClient(context)),
     ]);
@@ -493,7 +493,7 @@ class _SalesTeam extends StatelessWidget {
     return page([
       const SizedBox(height: 4),
       Kv([('People', '${reps.length}'), ('Won', inr(won)), ('Pipeline', inr(pipelineValue))]),
-      if (reps.isEmpty) empty('No salespeople yet.'),
+      if (reps.isEmpty) empty('No salespeople yet'),
       for (final r in reps)
         InkWell(
           onTap: () => openPerson(context, r),
@@ -502,10 +502,10 @@ class _SalesTeam extends StatelessWidget {
             Row(children: [
               Initials(r.name),
               const SizedBox(width: 12),
-              Expanded(child: Text(r.name, style: inter(16, w: FontWeight.w600))),
+              Expanded(child: Text(r.name, style: inter(16, w: FontWeight.w500))),
               Status(r.active ? S.ok : S.bad, r.active ? 'Active' : 'Suspended'),
             ]),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(
                 '${leads.where((l) => l.rep == r.name).length} leads · ${leads.where((l) => l.rep == r.name && l.stage == 'Won').length} won · target ${inr(r.quota)} · ${r.commission}% commission',
                 style: inter(14, c: C.mist)),
@@ -528,7 +528,7 @@ class _Freelancers extends StatelessWidget {
       Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Text('Freelancers only see the tasks given to them, never client billing or other work.', style: inter(14, c: C.mist))),
-      if (list.isEmpty) empty('No freelancers yet.'),
+      if (list.isEmpty) empty('No freelancers yet'),
       for (final f in list)
         InkWell(
           onTap: () => openPerson(context, f),
@@ -537,10 +537,10 @@ class _Freelancers extends StatelessWidget {
             Row(children: [
               Initials(f.name),
               const SizedBox(width: 12),
-              Expanded(child: Text(f.name, style: inter(16, w: FontWeight.w600))),
+              Expanded(child: Text(f.name, style: inter(16, w: FontWeight.w500))),
               Status(f.active ? S.ok : S.bad, f.active ? 'Active' : 'Suspended'),
             ]),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text('${f.skills.isEmpty ? 'No skills listed' : f.skills} · ${inr(f.rate)} an hour · ${openTasks(f.name)} open tasks', style: inter(14, c: C.mist)),
           ])),
         ),

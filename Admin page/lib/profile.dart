@@ -17,9 +17,9 @@ class Profile extends StatelessWidget {
       const SizedBox(height: 16),
       Center(
         child: Column(children: [
-          CircleAvatar(radius: 44, backgroundColor: C.raised, child: Text(initials(me.name), style: inter(30, w: FontWeight.w600, c: C.mist2))),
+          CircleAvatar(radius: 44, backgroundColor: C.raised, child: Text(initials(me.name), style: inter(30, w: FontWeight.w500, c: C.mist2))),
           const SizedBox(height: 12),
-          Text(me.name, style: inter(24, w: FontWeight.w600)),
+          Text(me.name, style: inter(24, w: FontWeight.w500)),
           Text(me.role, style: inter(15, c: C.mist)),
         ]),
       ),
@@ -30,7 +30,7 @@ class Profile extends StatelessWidget {
         tile('Agency', s: or(me.agency), lead: const Icon(Icons.storefront_outlined)),
       ]),
       Padding(
-          padding: const EdgeInsets.only(top: 14),
+          padding: const EdgeInsets.only(top: 16),
           child: FilledButton(
               onPressed: () async {
                 final v = await formSheet(context, 'Edit profile', [
