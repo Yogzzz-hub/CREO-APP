@@ -1,0 +1,28 @@
+name: creo_bde
+description: "Creo BDE mobile app: sales pipeline, CRM, plans, chat and leave."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  shared_preferences: ^2.5.6
+  url_launcher: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  # Inter is bundled so the app never downloads fonts at runtime. Licence: assets/fonts/Inter-OFL.txt (SIL OFL 1.1).
+  assets:
+    - assets/fonts/Inter-OFL.txt
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/InterVariable.ttf
