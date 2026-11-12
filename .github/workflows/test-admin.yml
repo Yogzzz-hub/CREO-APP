@@ -1,0 +1,56 @@
+
+name: Test Admin Flutter App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'Admin page/**'
+      - '.github/workflows/test-admin.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test-admin:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: "Admin page"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Check Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze Flutter code
+        run: flutter analyze
+
+      - name: Build Admin APK
+        run: flutter build apk --debug
+
+      - name: Upload Admin APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-flutter-apk
+          path: Admin page/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
