@@ -641,8 +641,6 @@ async def stage(
     lead_id: uuid.UUID, body: StageBody, db: AsyncSession = Depends(get_db), actor: Actor = CRMActor
 ):
     lead = await service.lead_for(db, actor, lead_id, lock=True)
-    if body.stage in {"lost", "disqualified", "nurture"} and len(body.reason) < 3:
-        raise Conflict("Record a reason for this outcome.")
     pending = list(
         (
             await db.execute(
@@ -650,22 +648,9 @@ async def stage(
             )
         ).scalars()
     )
-    if body.stage not in service.CLOSED and (
-        not lead.assigned_bde_id or not any(t.due_at > datetime.now(UTC) for t in pending)
-    ):
-        raise Conflict(
-            "Assign an owner and a future next action before advancing this active lead."
-        )
+    service.check_stage_change(lead, body.stage, body.reason, body.booked_minor, pending)
     old = lead.status
-    if old == "converted" and body.stage != "converted":
-        raise Conflict(
-            "A won deal cannot be reopened through a stage shortcut. Contact an administrator for an audited correction."
-        )
     if body.stage == "converted":
-        if not body.booked_minor:
-            raise Conflict("Confirm the booked contract value in minor currency units.")
-        if old == "converted":
-            raise Conflict("This lead is already won. Its booked value cannot be counted twice.")
         lead.metadata_extra = {
             **(lead.metadata_extra or {}),
             "booked_minor": body.booked_minor,
@@ -1225,7 +1210,7 @@ async def shared_proposal(token: str, db: AsyncSession = Depends(get_db)):
             )
         )
         await db.commit()
-    return {
+    view = {
         key: service.serialize(row)[key]
         for key in [
             "id",
@@ -1238,6 +1223,17 @@ async def shared_proposal(token: str, db: AsyncSession = Depends(get_db)):
             "valid_until",
         ]
     }
+    # The prospect must never see the agency's price floor or catalog internals.
+    snapshot = dict(view["snapshot"] or {})
+    snapshot["items"] = [
+        {k: v for k, v in item.items() if k not in _INTERNAL_ITEM_FIELDS}
+        for item in snapshot.get("items") or []
+    ]
+    view["snapshot"] = snapshot
+    return view
+
+
+_INTERNAL_ITEM_FIELDS = {"minimum_price", "catalog_price", "service_id"}
 
 
 @public_router.get("/proposals/{token}/pdf")

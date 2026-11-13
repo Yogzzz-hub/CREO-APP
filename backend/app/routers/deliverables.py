@@ -130,6 +130,18 @@ class SubmitUploadRequest(BaseModel):
     notes: str | None = Field(default=None, max_length=2000)
 
 
+
+def _is_storage_url(url: str) -> bool:
+    """True only for https URLs on the configured storage hosts."""
+    from urllib.parse import urlparse
+
+    from app.config import settings
+    parsed = urlparse(url)
+    allowed = {urlparse(v).hostname for v in (settings.STORAGE_ENDPOINT_URL, settings.SUPABASE_URL) if v}
+    allowed.add(f"{settings.STORAGE_BUCKET}.s3.amazonaws.com")
+    host = parsed.hostname or ""
+    return parsed.scheme == "https" and (host in allowed or any(host.endswith("." + h) for h in allowed if h))
+
 @router.post("/tasks/{task_id}/start")
 async def start_task(
     task_id: uuid.UUID,
@@ -184,6 +196,11 @@ async def submit_direct_upload(
     _require_team(actor)
     task = await workflow.get_task_for_actor(db, actor, task_id)
     # A key from another client's namespace must never be attachable to this task.
+    # Prefix alone is not enough: "clients/<own>/../../<other>" would leave the namespace once the
+    # key is put into a storage URL path. Reject dot segments, empty segments and backslashes.
+    key_parts = payload.storage_key.split("/")
+    if any(part in ("", ".", "..") for part in key_parts) or "\\" in payload.storage_key:
+        raise Forbidden("Invalid storage key", code="STORAGE_KEY_INVALID")
     if not payload.storage_key.startswith(f"clients/{task.client_id}/"):
         raise Forbidden("Storage key does not belong to this client", code="STORAGE_KEY_FORBIDDEN")
     try:
@@ -428,6 +445,9 @@ async def upload_voice_note(
     """Upload a voice recording feedback note (audio/webm, audio/mp4, audio/ogg, audio/wav, audio/mpeg)."""
     scope = _scope_from_actor(actor)
     d = await _get_deliverable_or_404(deliverable_id, scope, db)
+    if actor.role != UserRole.CLIENT:
+        # Staff act only on deliverables of their own pod / agency.
+        await workflow.get_deliverable_for_review(db, actor, deliverable_id)
 
     filename = getattr(audio, "filename", "") or ""
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -475,6 +495,9 @@ async def post_voice_response(
     """Allow client or team member to post a voice response/clarification to revision history."""
     scope = _scope_from_actor(actor)
     d = await _get_deliverable_or_404(deliverable_id, scope, db)
+    if actor.role != UserRole.CLIENT:
+        # Staff act only on deliverables of their own pod / agency.
+        await workflow.get_deliverable_for_review(db, actor, deliverable_id)
     msg = (payload.message or "").strip()
     if not msg and not payload.voice_note_url:
         raise Conflict("Please provide a message or voice note", code="MISSING_CONTENT")
@@ -506,6 +529,9 @@ async def withdraw_deliverable(
     """Team Lead / Admin withdraws or deletes an approved deliverable with a mandatory reason."""
     scope = _scope_from_actor(actor)
     d = await _get_deliverable_or_404(deliverable_id, scope, db)
+    if actor.role != UserRole.CLIENT:
+        # Staff act only on deliverables of their own pod / agency.
+        await workflow.get_deliverable_for_review(db, actor, deliverable_id)
     d = await workflow.withdraw_approved_deliverable(db, actor, d, reason=payload.reason)
     return {
         "status": d.status.value,
@@ -636,14 +662,17 @@ async def download_all_approved_zip(
                     if raw.startswith(storage_service.LOCAL_UPLOAD_PREFIXES):
                         # /static/<path> and the legacy /uploads/<path> mount both live under app/static.
                         relative = raw[len("/static/"):] if raw.startswith("/static/") else "uploads/" + raw[len("/uploads/"):]
-                        local = os.path.join(storage_service._LOCAL_STATIC_DIR, relative)
-                        if os.path.isfile(local):
+                        root = os.path.realpath(storage_service._LOCAL_STATIC_DIR)
+                        local = os.path.realpath(os.path.join(root, relative))
+                        # Never leave the static folder (../ or symlinks could reach server files).
+                        if os.path.commonpath([root, local]) == root and os.path.isfile(local):
                             zf.write(local, filename)
                             included += 1
                             continue
                     url = storage_service.resolve_media_url(raw)
-                    if url:
-                        resp = await http_client.get(url)
+                    # Fetch only from Creo's own storage, never an arbitrary or internal URL.
+                    if url and _is_storage_url(url):
+                        resp = await http_client.get(url, follow_redirects=False)
                         if resp.status_code == 200:
                             zf.writestr(filename, resp.content)
                             included += 1

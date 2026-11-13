@@ -192,6 +192,29 @@ async def lead_for(db, actor, lead_id, lock=False):
     return lead
 
 
+def check_stage_change(lead, stage, reason, booked_minor, pending):
+    """Raise Conflict when moving a lead to `stage` breaks the CRM pipeline rules.
+
+    Shared by the revenue CRM stage route and the legacy BDE lead update route."""
+    if stage in {"lost", "disqualified", "nurture"} and len(reason) < 3:
+        raise Conflict("Record a reason for this outcome.")
+    if stage not in CLOSED and (
+        not lead.assigned_bde_id or not any(t.due_at > datetime.now(UTC) for t in pending)
+    ):
+        raise Conflict(
+            "Assign an owner and a future next action before advancing this active lead."
+        )
+    if lead.status == "converted" and stage != "converted":
+        raise Conflict(
+            "A won deal cannot be reopened through a stage shortcut. Contact an administrator for an audited correction."
+        )
+    if stage == "converted":
+        if not booked_minor:
+            raise Conflict("Confirm the booked contract value in minor currency units.")
+        if lead.status == "converted":
+            raise Conflict("This lead is already won. Its booked value cannot be counted twice.")
+
+
 async def audit(db, actor, action, entity_id, details=None):
     db.add(
         AuditLog(

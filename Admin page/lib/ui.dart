@@ -405,7 +405,8 @@ class _FormSheetState extends State<_FormSheet> {
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Form(
         key: key,
-        child: ListView(shrinkWrap: true, padding: const EdgeInsets.fromLTRB(20, 0, 20, 24), children: [
+        // Not a lazy ListView: every field must stay built so the form validates all of them, even ones scrolled away.
+        child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 24), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(widget.heading, style: inter(22, w: FontWeight.w500)),
           for (final f in widget.fields)
             Padding(
@@ -460,7 +461,7 @@ class _FormSheetState extends State<_FormSheet> {
                 },
                 child: Text(widget.action)),
           ),
-        ]),
+        ])),
       ),
     );
   }

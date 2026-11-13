@@ -239,6 +239,12 @@ class _UploadSheetState extends State<UploadSheet> {
                 ],
                 selected: {byLink},
                 showSelectedIcon: false,
+                // Same look as the filter chips: ivory with dark text when selected, readable in both themes.
+                style: ButtonStyle(
+                  backgroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? C.text : C.ground),
+                  foregroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? C.ground : C.mist2),
+                  side: WidgetStatePropertyAll(BorderSide(color: C.line)),
+                ),
                 onSelectionChanged: (s) => setState(() {
                   byLink = s.first;
                   error = null;

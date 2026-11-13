@@ -23,6 +23,7 @@ void main() {
     expect(normalPhone('98765 43210'), '+919876543210');
     expect(normalPhone('+44 20 7946 0000'), '+442079460000');
     expect(normalPhone(''), '');
+    expect((plain(1), plain(2.5)), ('1', '2.5'));
   });
 
   test('lanes, pipeline value and conversion', () {

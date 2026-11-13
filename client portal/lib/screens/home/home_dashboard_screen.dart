@@ -43,7 +43,7 @@ class HomeDashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Fri 6 Nov · ${data.pendingDeliverableCount} things need you',
+                  '${_today()} · ${data.pendingDeliverableCount == 0 ? 'Nothing needs you right now' : '${data.pendingDeliverableCount} things need you'}',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 13,
@@ -92,7 +92,7 @@ class HomeDashboardScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Review ${data.pendingDeliverableCount} drafts',
+                              data.pendingDeliverableCount == 0 ? 'No drafts to review' : 'Review ${data.pendingDeliverableCount} drafts',
                               style: TextStyle(
                                 fontFamily: 'Plus Jakarta Sans',
                                 fontSize: 15,
@@ -102,7 +102,7 @@ class HomeDashboardScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '1 reel, 1 post, 1 story awaiting approval',
+                              data.pendingDeliverableCount == 0 ? 'Drafts from your pod will appear here' : 'Awaiting your approval',
                               style: TextStyle(
                                 fontFamily: 'Inter',
                                 fontSize: 12,
@@ -148,11 +148,13 @@ class HomeDashboardScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
+                          Flexible(
+                              child: Row(
                             children: [
                               const CreoPulseDot(color: AppColors.amber, size: 7),
                               const SizedBox(width: 8),
-                              Text(
+                              Flexible(
+                                  child: Text(
                                 'Ready for your review',
                                 style: TextStyle(
                                   fontFamily: 'Plus Jakarta Sans',
@@ -160,9 +162,9 @@ class HomeDashboardScreen extends StatelessWidget {
                                   fontWeight: FontWeight.w700,
                                   color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
                                 ),
-                              ),
+                              )),
                             ],
-                          ),
+                          )),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
@@ -250,7 +252,7 @@ class HomeDashboardScreen extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Renews 15 Nov',
+                            data.renewalDate == null ? 'No renewal date' : 'Renews ${_shortDate(data.renewalDate!)}',
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 12,
@@ -262,7 +264,7 @@ class HomeDashboardScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        data.planName ?? 'Brand Accelerator',
+                        data.planName ?? 'No active plan',
                         style: const TextStyle(
                           fontFamily: 'Plus Jakarta Sans',
                           fontSize: 22,
@@ -344,41 +346,15 @@ class HomeDashboardScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-
                 CreoCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Column(
-                    children: [
-                      _buildAgendaItem(
-                        context,
-                        dateStr: '7 Nov',
-                        weekday: 'Sat',
-                        title: 'Monsoon menu teaser',
-                        format: 'Reel',
-                        status: 'Needs you',
-                        isAccent: true,
-                      ),
-                      const Divider(height: 24),
-                      _buildAgendaItem(
-                        context,
-                        dateStr: '8 Nov',
-                        weekday: 'Sun',
-                        title: 'Serum launch carousel',
-                        format: 'Post',
-                        status: 'Scheduled',
-                        isAccent: false,
-                      ),
-                      const Divider(height: 24),
-                      _buildAgendaItem(
-                        context,
-                        dateStr: '10 Nov',
-                        weekday: 'Tue',
-                        title: 'Behind the scenes reel',
-                        format: 'Reel',
-                        status: 'Briefing',
-                        isAccent: false,
-                      ),
-                    ],
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Text(
+                    'Nothing scheduled in the next 7 days',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 13,
+                      color: isDark ? CreoColors.mist : CreoColors.lightMist,
+                    ),
                   ),
                 ),
               ],
@@ -395,7 +371,8 @@ class HomeDashboardScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
+                    Flexible(
+                        child: Text(
                       'Your creative pod',
                       style: TextStyle(
                         fontFamily: 'Inter',
@@ -403,7 +380,7 @@ class HomeDashboardScreen extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                         color: isDark ? CreoColors.mist : CreoColors.lightMist,
                       ),
-                    ),
+                    )),
                     InkWell(
                       onTap: () => CreativePodDetailScreen.show(context, onOpenChat: onNavigateToChat),
                       child: const Text(
@@ -414,14 +391,14 @@ class HomeDashboardScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-
                 GestureDetector(
                   onTap: () => CreativePodDetailScreen.show(context, onOpenChat: onNavigateToChat),
                   child: CreoCard(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
+                        Expanded(
+                            child: Row(
                           children: [
                             Container(
                               width: 44,
@@ -430,10 +407,10 @@ class HomeDashboardScreen extends StatelessWidget {
                                 color: CreoColors.amber.withValues(alpha: 0.2),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Center(
+                              child: Center(
                                 child: Text(
-                                  'YB',
-                                  style: TextStyle(
+                                  _initials(_podLead?.name),
+                                  style: const TextStyle(
                                     color: CreoColors.amber,
                                     fontWeight: FontWeight.w900,
                                   ),
@@ -441,11 +418,12 @@ class HomeDashboardScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 14),
-                            Column(
+                            Expanded(
+                                child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Yogalakshmi Baskar',
+                                  _podLead?.name ?? 'Pod not assigned yet',
                                   style: TextStyle(
                                     fontFamily: 'Plus Jakarta Sans',
                                     fontSize: 15,
@@ -455,7 +433,9 @@ class HomeDashboardScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Pod Lead · Creative Pod Alpha',
+                                  _podLead == null
+                                      ? 'Your team appears here once assigned'
+                                      : '${_podLead!.roleLabel}${_podLead!.podName == null ? '' : ' · ${_podLead!.podName}'}',
                                   style: TextStyle(
                                     fontFamily: 'Inter',
                                     fontSize: 12,
@@ -463,9 +443,9 @@ class HomeDashboardScreen extends StatelessWidget {
                                   ),
                                 ),
                               ],
-                            ),
+                            )),
                           ],
-                        ),
+                        )),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
@@ -493,6 +473,31 @@ class HomeDashboardScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// The pod lead, or the first assigned person, or null before a pod is assigned.
+  TeamHandler? get _podLead {
+    if (data.assignedTeam.isEmpty) return null;
+    return data.assignedTeam.firstWhere((m) => m.role == 'team_lead', orElse: () => data.assignedTeam.first);
+  }
+
+  static String _initials(String? name) {
+    final parts = (name ?? '').trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '–';
+    return parts.take(2).map((p) => p[0].toUpperCase()).join();
+  }
+
+  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  static const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  static String _today() {
+    final n = DateTime.now();
+    return '${_days[n.weekday - 1]} ${n.day} ${_months[n.month - 1]}';
+  }
+
+  static String _shortDate(String iso) {
+    final d = DateTime.tryParse(iso);
+    return d == null ? iso : '${d.day} ${_months[d.month - 1]}';
   }
 
   Widget _buildStepBar(BuildContext context, String label, bool isDone, {bool isCurrent = false}) {
@@ -529,9 +534,7 @@ class HomeDashboardScreen extends StatelessWidget {
               fontFamily: 'Inter',
               fontSize: 10,
               fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
-              color: isCurrent
-                  ? CreoColors.amber
-                  : (isDark ? CreoColors.mist : CreoColors.lightMist),
+              color: isCurrent ? CreoColors.amber : (isDark ? CreoColors.mist : CreoColors.lightMist),
             ),
           ),
         ],
@@ -580,96 +583,6 @@ class HomeDashboardScreen extends StatelessWidget {
               backgroundColor: Colors.black12,
               valueColor: const AlwaysStoppedAnimation(Colors.black87),
               minHeight: 6,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAgendaItem(
-    BuildContext context, {
-    required String dateStr,
-    required String weekday,
-    required String title,
-    required String format,
-    required String status,
-    required bool isAccent,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Row(
-      children: [
-        SizedBox(
-          width: 44,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                weekday.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? CreoColors.mist : CreoColors.lightMist,
-                ),
-              ),
-              Text(
-                dateStr.split(' ')[0],
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                format.toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: CreoColors.amber,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: isAccent ? CreoColors.amber : Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-            border: isAccent
-                ? null
-                : Border.all(
-                    color: isDark ? CreoColors.line : CreoColors.lightLine,
-                  ),
-          ),
-          child: Text(
-            status,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: isAccent
-                  ? CreoColors.onAmber
-                  : (isDark ? CreoColors.mist : CreoColors.lightMist),
             ),
           ),
         ),

@@ -19,6 +19,30 @@ from app.models.work import Deliverable, Task
 
 router = APIRouter(prefix="/tickets", tags=["Tickets"])
 
+_TICKET_STAFF = {UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.TEAM_LEAD, UserRole.EDITOR, UserRole.DESIGNER}
+
+
+async def _staff_may_access(db: AsyncSession, actor: Actor, client_id: uuid.UUID) -> None:
+    """Staff reach a client's tickets only through the shared client scope (agency and pod)."""
+    from app.core.client_scope import ensure_client_access
+    await ensure_client_access(db, actor, client_id, allow_client=False)
+
+
+def _scope_staff_list(stmt, actor: Actor):
+    """Limit a staff ticket list to clients the actor may see. Other roles see none."""
+    from app.models.user import User
+    from app.models.work import ClientAssignment
+    if actor.role not in _TICKET_STAFF:
+        raise HTTPException(status_code=403, detail="Your role cannot view support tickets")
+    if actor.role == UserRole.SUPER_ADMIN:
+        return stmt
+    if actor.role == UserRole.ADMIN:
+        if not actor.agency_id:
+            raise HTTPException(status_code=403, detail="Your account has no agency")
+        return stmt.where(Ticket.client_id.in_(select(User.id).where(User.agency_id == actor.agency_id)))
+    return stmt.where(Ticket.client_id.in_(
+        select(ClientAssignment.client_id).where(ClientAssignment.user_id == actor.user_id)))
+
 
 class CreateTicketRequest(BaseModel):
     title: str = Field(..., min_length=3, max_length=255)
@@ -57,6 +81,7 @@ async def list_tickets(
         target_client_id = actor.client_id or actor.user_id
         stmt = stmt.where(Ticket.client_id == target_client_id, Ticket.status != TicketStatus.CLOSED)
     else:
+        stmt = _scope_staff_list(stmt, actor)
         if client_id:
             stmt = stmt.where(Ticket.client_id == client_id)
         if status_filter == "active":
@@ -113,6 +138,17 @@ async def create_ticket(
 ) -> dict[str, Any]:
     """Create a new support ticket."""
     client_id = actor.client_id or actor.user_id
+    # A ticket may only point at the client's own deliverable and own pod member.
+    if payload.deliverable_id:
+        own = await db.get(Deliverable, payload.deliverable_id)
+        if own is None or own.client_id != client_id:
+            raise HTTPException(status_code=404, detail="Deliverable not found")
+    if payload.assigned_to:
+        from app.models.work import ClientAssignment
+        assigned = await db.scalar(select(ClientAssignment.id).where(
+            ClientAssignment.client_id == client_id, ClientAssignment.user_id == payload.assigned_to).limit(1))
+        if assigned is None:
+            raise HTTPException(status_code=400, detail="That person is not on your team")
 
     ticket = Ticket(
         client_id=client_id,
@@ -201,6 +237,8 @@ async def get_ticket(
     client_id = actor.client_id or actor.user_id
     if actor.role in (UserRole.CLIENT, "client") and ticket.client_id != client_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this ticket")
+    if actor.role not in (UserRole.CLIENT, "client"):
+        await _staff_may_access(db, actor, ticket.client_id)
 
     deliv_title = None
     if ticket.deliverable:
@@ -258,6 +296,8 @@ async def add_ticket_message(
     client_id = actor.client_id or actor.user_id
     if actor.role in (UserRole.CLIENT, "client") and ticket.client_id != client_id:
         raise HTTPException(status_code=403, detail="Not authorized to reply to this ticket")
+    if actor.role not in (UserRole.CLIENT, "client"):
+        await _staff_may_access(db, actor, ticket.client_id)
 
     msg = TicketMessage(
         ticket_id=ticket.id,
@@ -314,6 +354,7 @@ async def update_ticket_status(
 
     if actor.role in (UserRole.CLIENT, "client"):
         raise HTTPException(status_code=403, detail="Clients cannot resolve or close tickets.")
+    await _staff_may_access(db, actor, ticket.client_id)
 
     new_status = payload.status.upper()
     if new_status == "RESOLVED":

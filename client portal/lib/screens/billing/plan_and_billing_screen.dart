@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/creo_card.dart';
 import '../../widgets/creo_segmented_tabs.dart';
-import '../../widgets/creo_animations.dart';
 import 'compare_plans_modal.dart';
 import 'pause_plan_modal.dart';
 import 'plan_bargain_modal.dart';
-import 'invoice_detail_modal.dart';
 
 class PlanAndBillingScreen extends StatefulWidget {
   final VoidCallback onTriggerRazorpayCheckout;
@@ -22,9 +20,10 @@ class PlanAndBillingScreen extends StatefulWidget {
 
 class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
   int _selectedSubTab = 0; // 0: Retainer, 1: Add-ons, 2: Invoices
-  bool _isAutoPayActive = true;
-  String _currentPlan = 'Brand Accelerator';
-  String _renewalDate = '17 MAR';
+  // No plan until billing data is loaded from the backend.
+  bool _isAutoPayActive = false;
+  final String _currentPlan = 'No active plan';
+  final String _renewalDate = '—';
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +91,7 @@ class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: CreoColors.amber.withOpacity(0.25),
+                color: CreoColors.amber.withValues(alpha: 0.25),
                 blurRadius: 18,
                 offset: const Offset(0, 6),
               ),
@@ -110,13 +109,13 @@ class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.0,
-                      color: CreoColors.onAmber.withOpacity(0.7),
+                      color: CreoColors.onAmber.withValues(alpha: 0.7),
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.15),
+                      color: Colors.black.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
@@ -147,7 +146,7 @@ class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
                     ),
                   ),
                   const Text(
-                    '₹50,000/mo',
+                    '—',
                     style: TextStyle(
                       fontFamily: 'Plus Jakarta Sans',
                       fontSize: 18,
@@ -159,10 +158,10 @@ class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Includes 12 Reels, 8 Posters, 16 Stories, and dedicated pod with 24h revision turnaround SLA.',
+                'Choose a plan to start your content retainer.',
                 style: TextStyle(
                   fontSize: 13,
-                  color: CreoColors.onAmber.withOpacity(0.85),
+                  color: CreoColors.onAmber.withValues(alpha: 0.85),
                 ),
               ),
               const SizedBox(height: 16),
@@ -172,15 +171,15 @@ class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Next billing date: $_renewalDate',
+                    'No billing date yet',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: CreoColors.onAmber.withOpacity(0.9),
+                      color: CreoColors.onAmber.withValues(alpha: 0.9),
                     ),
                   ),
                   const Text(
-                    'Active · Renews automatically',
+                    'Not active',
                     style: TextStyle(
                       fontSize: 11,
                       color: CreoColors.onAmber,
@@ -273,60 +272,6 @@ class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
 
         const SizedBox(height: 20),
 
-        // Split Payment Milestone Card (From SplitPaymentCard.tsx)
-        CreoCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Milestone Billing (2-Part Split)',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.emerald.withAlpha(25),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      '50% PAID',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.emerald),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'First installment (₹25,000) cleared on 17 Feb. Second installment due after Batch 2 handoff.',
-                style: TextStyle(fontSize: 12, color: isDark ? CreoColors.mist : CreoColors.lightMist),
-              ),
-              const SizedBox(height: 14),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: 0.5,
-                  minHeight: 6,
-                  backgroundColor: isDark ? AppColors.line : AppColors.lightBorder,
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.amber),
-                ),
-              ),
-              const SizedBox(height: 14),
-              CreoPillButton(
-                label: 'Pay Remaining 50% (₹25,000)',
-                icon: Icons.credit_card_rounded,
-                isPrimary: true,
-                fullWidth: true,
-                onPressed: widget.onTriggerRazorpayCheckout,
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
         // Payment Method & AutoPay Settings
         CreoCard(
           child: Column(
@@ -361,8 +306,8 @@ class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Razorpay UPI AutoPay Mandate', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                        Text('creo.client@hdfcbank · Next charge ₹50,000 on $_renewalDate', style: TextStyle(fontSize: 11, color: isDark ? AppColors.mist : AppColors.lightMist)),
+                        const Text('No payment method on file', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                        Text('Add one when you choose a plan', style: TextStyle(fontSize: 11, color: isDark ? AppColors.mist : AppColors.lightMist)),
                       ],
                     ),
                   ),
@@ -457,97 +402,13 @@ class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
 
   // ── Tab 3: Invoices View ──
   Widget _buildInvoicesView(BuildContext context) {
-    return Column(
-      children: [
-        _buildInvoiceItem(
-          invNumber: 'INV-2026-03-01',
-          date: '1 Mar 2026',
-          amount: '₹50,000',
-          status: 'Paid',
-        ),
-        const SizedBox(height: 10),
-        _buildInvoiceItem(
-          invNumber: 'INV-2026-02-01',
-          date: '1 Feb 2026',
-          amount: '₹50,000',
-          status: 'Paid',
-        ),
-        const SizedBox(height: 10),
-        _buildInvoiceItem(
-          invNumber: 'INV-2026-01-01',
-          date: '1 Jan 2026',
-          amount: '₹25,000',
-          status: 'Paid',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInvoiceItem({
-    required String invNumber,
-    required String date,
-    required String amount,
-    required String status,
-  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return GestureDetector(
-      onTap: () {
-        InvoiceDetailModal.show(
-          context,
-          invoiceId: invNumber,
-          date: date,
-          amount: amount,
-          planName: _currentPlan,
-          status: status,
-        );
-      },
-      child: CreoCard(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  invNumber,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  date,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? CreoColors.mist : CreoColors.lightMist,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Text(
-                  amount,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(width: 12),
-                IconButton(
-                  icon: const Icon(Icons.receipt_rounded, size: 20, color: AppColors.amber),
-                  onPressed: () {
-                    InvoiceDetailModal.show(
-                      context,
-                      invoiceId: invNumber,
-                      date: date,
-                      amount: amount,
-                      planName: _currentPlan,
-                      status: status,
-                    );
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
+    return CreoCard(
+      child: Text(
+        'No invoices yet',
+        style: TextStyle(fontSize: 13, color: isDark ? CreoColors.mist : CreoColors.lightMist),
       ),
     );
   }
+
 }

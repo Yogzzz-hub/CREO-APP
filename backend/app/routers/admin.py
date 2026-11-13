@@ -59,11 +59,28 @@ from app.models.support import Ticket, TicketMessage
 from app.models.user import ClientProfile, StaffProfile, User
 from app.models.questionnaire import Questionnaire
 from app.models.work import ClientAssignment, ContentCalendar, Deliverable, Task
-from app.services import deliverable_state, storage_service
+from app.services import deliverable_state, deliverable_workflow, storage_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["Admin Operations"])
+
+
+def _agency_filter(actor: Actor) -> str | None:
+    """Agency id that raw SQL reads must filter by; None only for super admins.
+
+    Fails closed: a non-super-admin without an agency sees nothing instead of everything.
+    """
+    if actor.role == UserRole.SUPER_ADMIN:
+        return None
+    if not actor.agency_id:
+        raise Forbidden("Your account is not linked to an agency", code="AGENCY_REQUIRED")
+    return str(actor.agency_id)
+
+
+def _in_agency(column: str) -> str:
+    """SQL condition keeping rows of the :agency parameter (all rows when it is NULL)."""
+    return f"(CAST(:agency AS uuid) IS NULL OR {column} = CAST(:agency AS uuid))"
 
 
 # --- Schemas ---
@@ -179,6 +196,7 @@ async def get_kpis(
             JOIN users u ON u.id = s.client_id
             WHERE s.status = 'active'
               AND u.account_status = 'active'
+              AND {_in_agency('u.agency_id')}
             ORDER BY s.client_id, s.created_at DESC
         )
         SELECT
@@ -187,8 +205,10 @@ async def get_kpis(
             (
                 SELECT COUNT(DISTINCT sub.client_id)::INT
                 FROM subscriptions sub
+                JOIN users cu ON cu.id = sub.client_id
                 WHERE sub.status = 'canceled'
                   AND sub.current_period_end >= NOW() - INTERVAL '{interval_str}'
+                  AND {_in_agency('cu.agency_id')}
             ) AS churned_last_30d,
             COALESCE(
                 (
@@ -196,12 +216,13 @@ async def get_kpis(
                     FROM deliverables d
                     WHERE d.approved_at IS NOT NULL
                       AND d.created_at >= NOW() - INTERVAL '{interval_str}'
+                      AND {_in_agency('d.agency_id')}
                 ),
                 0.0
             )::NUMERIC AS avg_turnaround_hours
         FROM active_subs;
     """)
-    res = await db.execute(sql)
+    res = await db.execute(sql, {"agency": _agency_filter(actor)})
     row = res.fetchone()
 
     mrr_minor = int(row[0]) if row and row[0] else 0
@@ -246,17 +267,18 @@ async def export_admin_report(
 
     output = io.StringIO()
     writer = csv.writer(output)
+    scope = {"agency": _agency_filter(actor)}
 
     if report_type == "clients":
         writer.writerow(["Client ID", "Email", "Company", "Status", "Plan"])
-        res = await db.execute(text("SELECT u.id, u.email, cp.company_name, u.account_status, p.name FROM users u LEFT JOIN client_profiles cp ON cp.user_id = u.id LEFT JOIN subscriptions s ON s.client_id = u.id LEFT JOIN plans p ON p.id = s.plan_id WHERE u.role = 'client'"))
+        res = await db.execute(text("SELECT u.id, u.email, cp.company_name, u.account_status, p.name FROM users u LEFT JOIN client_profiles cp ON cp.user_id = u.id LEFT JOIN subscriptions s ON s.client_id = u.id LEFT JOIN plans p ON p.id = s.plan_id WHERE u.role = 'client' AND " + _in_agency("u.agency_id")), scope)
         for row in res.fetchall():
             writer.writerow([str(row[0]), row[1], row[2] or "N/A", row[3], row[4] or "N/A"])
     else:
         writer.writerow(["Metric", "Value"])
-        res = await db.execute(text("SELECT COUNT(*) FROM users WHERE role = 'client'"))
+        res = await db.execute(text("SELECT COUNT(*) FROM users WHERE role = 'client' AND " + _in_agency("agency_id")), scope)
         total_clients = res.scalar() or 0
-        res = await db.execute(text("SELECT COUNT(*) FROM tasks WHERE status != 'completed'"))
+        res = await db.execute(text("SELECT COUNT(*) FROM tasks WHERE status != 'completed' AND " + _in_agency("agency_id")), scope)
         active_tasks = res.scalar() or 0
         writer.writerow(["Total Clients", total_clients])
         writer.writerow(["Active Tasks in Pipeline", active_tasks])
@@ -299,7 +321,8 @@ async def get_revenue_trend(
 
     # We want to show a cumulative MRR curve (Total MRR at each point in time).
     # Fetch all active subscriptions with their created_at date.
-    subs_sql = text("""
+    scope = {"agency": _agency_filter(actor)}
+    subs_sql = text(f"""
         WITH active_subs AS (
             SELECT DISTINCT ON (s.client_id)
                 s.client_id,
@@ -307,12 +330,14 @@ async def get_revenue_trend(
                 s.created_at
             FROM subscriptions s
             JOIN plans p ON p.id = s.plan_id
+            JOIN users u ON u.id = s.client_id
             WHERE s.status IN ('active', 'trialing')
+              AND {_in_agency('u.agency_id')}
             ORDER BY s.client_id, s.created_at DESC
         )
         SELECT created_at, effective_mrr_minor FROM active_subs ORDER BY created_at;
     """)
-    res = await db.execute(subs_sql)
+    res = await db.execute(subs_sql, scope)
     all_subs = res.fetchall()
 
     # Generate full sequence of buckets for fluid curve with variations
@@ -343,21 +368,23 @@ async def get_revenue_trend(
         labels = [d.strftime("%b %Y") for d in dates]
 
     # Fetch total base revenue from active (non-trialing) subscriptions
-    total_sql = text("""
+    total_sql = text(f"""
         WITH active_subs AS (
             SELECT DISTINCT ON (s.client_id)
                 s.client_id,
                 COALESCE(s.amount * 100, p.price_minor) AS effective_mrr_minor
             FROM subscriptions s
             JOIN plans p ON p.id = s.plan_id
+            JOIN users u ON u.id = s.client_id
             WHERE s.status = 'active'
+              AND {_in_agency('u.agency_id')}
             ORDER BY s.client_id, s.created_at DESC
         )
         SELECT COALESCE(SUM(effective_mrr_minor), 0)::BIGINT AS total_revenue,
                COUNT(DISTINCT client_id)::INT AS total_clients
         FROM active_subs;
     """)
-    total_res = await db.execute(total_sql)
+    total_res = await db.execute(total_sql, scope)
     total_row = total_res.first()
     total_revenue = int(total_row[0]) if total_row and total_row[0] else 0
     total_clients = int(total_row[1]) if total_row and total_row[1] else 0
@@ -383,7 +410,7 @@ async def get_plans_summary(
     actor: Actor = Depends(require_roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SALES)),
 ) -> dict[str, Any]:
     """Return all active plans with subscriber counts, revenue contribution and share."""
-    sql = text("""
+    sql = text(f"""
         SELECT
             p.id::TEXT,
             p.name,
@@ -394,12 +421,15 @@ async def get_plans_summary(
             COUNT(s.id) FILTER (WHERE s.status IN ('active', 'trialing'))::INT AS subscriber_count,
             COALESCE(SUM(p.price_minor) FILTER (WHERE s.status IN ('active', 'trialing')), 0)::BIGINT AS revenue_contribution
         FROM plans p
-        LEFT JOIN subscriptions s ON s.plan_id = p.id
+        LEFT JOIN subscriptions s ON s.plan_id = p.id AND EXISTS (
+            SELECT 1 FROM users su WHERE su.id = s.client_id AND {_in_agency('su.agency_id')}
+        )
         WHERE p.is_active = TRUE
+          AND (p.agency_id IS NULL OR {_in_agency('p.agency_id')})
         GROUP BY p.id, p.name, p.display_name, p.price_minor, p.monthly_price, p.is_recommended
         ORDER BY p.price_minor ASC;
     """)
-    res = await db.execute(sql)
+    res = await db.execute(sql, {"agency": _agency_filter(actor)})
     rows = res.fetchall()
 
     total_subscribers = sum(r[6] for r in rows)
@@ -437,6 +467,8 @@ async def get_dashboard(
     interval_map = {"7d": "7 days", "30d": "30 days", "90d": "90 days", "365d": "365 days"}
     interval_str = interval_map.get(timeframe, "30 days")
 
+    scope = {"agency": _agency_filter(actor)}
+
     # 1. LIVE Real-time KPIs
     kpi_res = await db.execute(
         text(f"""
@@ -446,8 +478,10 @@ async def get_dashboard(
                 (
                     SELECT COUNT(DISTINCT sub.client_id)::INT
                     FROM subscriptions sub
+                    JOIN users cu ON cu.id = sub.client_id
                     WHERE sub.status = 'canceled'
                       AND sub.current_period_end >= NOW() - INTERVAL '{interval_str}'
+                      AND {_in_agency('cu.agency_id')}
                 ) AS churned_last_30d,
                 COALESCE(
                     (
@@ -455,14 +489,17 @@ async def get_dashboard(
                         FROM deliverables d
                         WHERE d.approved_at IS NOT NULL
                           AND d.created_at >= NOW() - INTERVAL '{interval_str}'
+                          AND {_in_agency('d.agency_id')}
                     ),
                     0.0
                 )::NUMERIC AS avg_turnaround_hours
             FROM subscriptions s
             JOIN plans p ON p.id = s.plan_id
             JOIN users u ON u.id = s.client_id
-            WHERE s.status IN ('trialing', 'active');
-        """)
+            WHERE s.status IN ('trialing', 'active')
+              AND {_in_agency('u.agency_id')};
+        """),
+        scope,
     )
     kpi_row = kpi_res.fetchone()
     mrr_minor = kpi_row[0] if kpi_row else 0
@@ -482,23 +519,24 @@ async def get_dashboard(
     }
 
     # Count the pipeline and open breaches in one scan and one round trip.
-    pipeline_res = await db.execute(text("""
+    pipeline_res = await db.execute(text(f"""
         SELECT status, COUNT(id),
                COUNT(id) FILTER (WHERE sla_due_at < NOW()
                    AND status NOT IN ('ready_to_publish', 'completed'))
-        FROM tasks GROUP BY status
-    """))
+        FROM tasks WHERE {_in_agency('agency_id')} GROUP BY status
+    """), scope)
     pipeline_rows = pipeline_res.fetchall()
     status_counts = {row[0]: row[1] for row in pipeline_rows}
     open_sla_breaches = sum(row[2] for row in pipeline_rows)
 
     # 4. Staff capacity summary
     staff_res = await db.execute(
-        text("""
+        text(f"""
         WITH staff_wip AS (
             SELECT assigned_to, COUNT(*) AS active_wip
             FROM tasks
             WHERE status IN ('in_production', 'internal_qa')
+              AND {_in_agency('agency_id')}
             GROUP BY assigned_to
         )
         SELECT
@@ -506,8 +544,11 @@ async def get_dashboard(
             COALESCE(SUM(sp.daily_capacity), 0) AS total_capacity,
             COALESCE(SUM(w.active_wip), 0) AS active_wip
         FROM staff_profiles sp
-        LEFT JOIN staff_wip w ON w.assigned_to = sp.user_id;
-    """)
+        JOIN users su ON su.id = sp.user_id
+        LEFT JOIN staff_wip w ON w.assigned_to = sp.user_id
+        WHERE {_in_agency('su.agency_id')};
+    """),
+        scope,
     )
     staff_summary = staff_res.fetchone()
     
@@ -520,7 +561,9 @@ async def get_dashboard(
             COUNT(*) FILTER (WHERE sla_due_at IS NOT NULL) AS total_with_sla
         FROM tasks
         WHERE created_at >= NOW() - INTERVAL '{interval_str}'
-        """)
+          AND {_in_agency('agency_id')}
+        """),
+        scope,
     )
     sla_row = sla_perf_res.fetchone()
     
@@ -597,6 +640,8 @@ async def get_client_roster(
         LEFT JOIN usage_counters uc ON uc.client_id = u.id AND uc.period_start <= CURRENT_DATE AND uc.period_end >= CURRENT_DATE
         LEFT JOIN questionnaires q ON q.user_id = u.id
         WHERE u.role = 'client'
+          AND (CAST(:all_agencies AS boolean) OR u.agency_id = :agency_id)
+          AND (CAST(:all_pods AS boolean) OR u.id IN (SELECT client_id FROM client_assignments WHERE user_id = :actor_id))
         GROUP BY
             u.id, u.email, u.full_name, u.account_status, cp.company_name, cp.instagram_username,
             cp.onboarding_completed_at, cp.terms_accepted_at, u.email_verified_at,
@@ -605,7 +650,15 @@ async def get_client_roster(
         ORDER BY u.created_at DESC;
     """)
 
-    res = await db.execute(sql)
+    # Admins see their agency's clients; pod staff only clients assigned to them.
+    if actor.role != UserRole.SUPER_ADMIN and not actor.agency_id:
+        raise Forbidden("Your account has no agency")
+    res = await db.execute(sql, {
+        "all_agencies": actor.role == UserRole.SUPER_ADMIN,
+        "agency_id": actor.agency_id,
+        "all_pods": actor.role in (UserRole.ADMIN, UserRole.SUPER_ADMIN),
+        "actor_id": actor.user_id,
+    })
     rows = res.fetchall()
 
     curated_palettes = [
@@ -762,6 +815,9 @@ async def onboard_client(
     actor: Actor = Depends(get_current_actor),
 ) -> dict[str, Any]:
     """Onboard a new client brand, create client user account, profile, and dispatch credentials email."""
+    # Onboarding creates live client logins and sends credential emails: admins and sales only.
+    if actor.role not in (UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SALES, UserRole.BDE, UserRole.BDE_HEAD):
+        raise Forbidden("Your role cannot onboard clients")
     from app.core.security import hash_password
     from app.services.email_service import send_credentials_email
 
@@ -847,6 +903,8 @@ async def create_client_team_member(
     from app.core.security import hash_password
     from app.services.email_service import send_credentials_email
 
+    from app.core.client_scope import ensure_client_access
+    await ensure_client_access(db, actor, client_id, write=True, allow_client=False)
     client = await db.get(User, client_id)
     if not client:
         raise NotFound(f"Client account {client_id} not found.")
@@ -928,6 +986,8 @@ async def list_client_team_members(
     client = await db.get(User, client_id)
     if not client:
         raise NotFound(f"Client {client_id} not found.")
+    from app.core.client_scope import ensure_client_access
+    await ensure_client_access(db, actor, client_id, allow_client=False)
 
     stmt = (
         select(ClientAssignment, User)
@@ -968,8 +1028,14 @@ async def update_client_team_member_credentials(
     from app.core.security import hash_password
     from app.services.email_service import send_credentials_email
 
+    # Only staff who may change this client's workspace, and only for a login linked to this client.
+    from app.core.client_scope import ensure_client_access
+    await ensure_client_access(db, actor, client_id, write=True, allow_client=False)
     member = await db.get(User, user_id)
-    if not member:
+    linked = (await db.execute(select(ClientAssignment.id).where(
+        ClientAssignment.client_id == client_id, ClientAssignment.user_id == user_id
+    ).limit(1))).scalar_one_or_none()
+    if not member or member.role != UserRole.CLIENT or linked is None:
         raise NotFound("Member not found.")
 
     member.hashed_password = hash_password(payload.password.strip())
@@ -1034,6 +1100,9 @@ async def get_client_brand_profile(
             )
             .limit(1)
         )
+        if actor.role != UserRole.SUPER_ADMIN:
+            # Keep the slug search inside the actor's agency.
+            search_stmt = search_stmt.where(User.agency_id == actor.agency_id)
         res = await db.execute(search_stmt)
         client_user = res.scalar_one_or_none()
 
@@ -1041,6 +1110,10 @@ async def get_client_brand_profile(
         raise NotFound(f"Client {client_id} not found", code="CLIENT_NOT_FOUND")
 
     client_uuid = client_user.id
+
+    # Every non-super-admin stays inside their own agency (the slug search above spans all agencies).
+    if actor.role != UserRole.SUPER_ADMIN and (not actor.agency_id or client_user.agency_id != actor.agency_id):
+        raise NotFound(f"Client {client_id} not found", code="CLIENT_NOT_FOUND")
 
     # 2. Access control for staff:
     # Admins, Super Admins, and Team Leads / Pod Leads oversee client accounts, brand DNA, and team allocations.
@@ -1351,6 +1424,9 @@ async def update_client_profile(
             )
             .limit(1)
         )
+        if actor.role != UserRole.SUPER_ADMIN:
+            # Keep the slug search inside the actor's agency.
+            search_stmt = search_stmt.where(User.agency_id == actor.agency_id)
         res = await db.execute(search_stmt)
         client_user = res.scalar_one_or_none()
 
@@ -1447,9 +1523,10 @@ async def get_dispatch_queue(
     actor: Actor = StaffActor,
 ) -> dict[str, Any]:
     """Global dispatch queue and staff capacity breakdown."""
+    scope = {"agency": _agency_filter(actor)}
     # 1. Backlog and active pipeline tasks awaiting dispatch or in production
     active_res = await db.execute(
-        text("""
+        text(f"""
         SELECT t.id, t.client_id, t.deliverable_type, t.status, t.due_date, t.sla_due_at, t.created_at,
                cp.company_name AS client_company,
                c.email AS client_email,
@@ -1473,8 +1550,10 @@ async def get_dispatch_queue(
         LEFT JOIN users c ON c.id = t.client_id
         LEFT JOIN users u ON u.id = t.assigned_to
         WHERE t.status IN ('backlog', 'in_production', 'internal_qa', 'client_review')
+          AND {_in_agency('t.agency_id')}
         ORDER BY t.due_date ASC NULLS LAST, t.created_at DESC;
-    """)
+    """),
+        scope,
     )
     active_rows = active_res.fetchall()
     active_tasks = [
@@ -1506,7 +1585,7 @@ async def get_dispatch_queue(
 
     # 2. Staff capacity overview
     staff_res = await db.execute(
-        text("""
+        text(f"""
         WITH staff_wip AS (
             SELECT
                 assigned_to,
@@ -1516,6 +1595,7 @@ async def get_dispatch_queue(
                 COUNT(id) FILTER (WHERE deliverable_type::text = 'reel') AS wip_reels
             FROM tasks
             WHERE status IN ('in_production', 'internal_qa')
+              AND {_in_agency('agency_id')}
             GROUP BY assigned_to
         )
         SELECT
@@ -1543,8 +1623,10 @@ async def get_dispatch_queue(
         JOIN users u ON u.id = sp.user_id
         LEFT JOIN teams t ON t.id = u.owning_team_id
         LEFT JOIN staff_wip w ON w.assigned_to = sp.user_id
+        WHERE {_in_agency('u.agency_id')}
         ORDER BY active_wip DESC;
-    """)
+    """),
+        scope,
     )
     staff_overview = [
         {
@@ -1584,7 +1666,7 @@ async def get_sla_breaches(
     actor: Actor = TeamLeadActor,
 ) -> list[dict[str, Any]]:
     """Open SLA breaches and escalations."""
-    sql = text("""
+    sql = text(f"""
         SELECT
             t.id, t.client_id, t.assigned_to, t.deliverable_type, t.status,
             t.sla_due_at, t.last_sla_notified_at, t.created_at,
@@ -1595,9 +1677,10 @@ async def get_sla_breaches(
         LEFT JOIN client_profiles cp ON cp.user_id = t.client_id
         WHERE t.sla_due_at < NOW()
           AND t.status NOT IN ('ready_to_publish', 'completed')
+          AND {_in_agency('t.agency_id')}
         ORDER BY t.sla_due_at ASC;
     """)
-    res = await db.execute(sql)
+    res = await db.execute(sql, {"agency": _agency_filter(actor)})
     rows = res.fetchall()
 
     return [
@@ -1626,8 +1709,9 @@ async def get_sla_performance(
     """Consolidated SLA metrics, active breaches, compliance trajectory, priority breakdowns, and pod leaderboard."""
     now = datetime.now(timezone.utc)
 
+    scope = {"agency": _agency_filter(actor)}
     # 1. High-level SLA metrics from tasks
-    q_stats = await db.execute(text("""
+    q_stats = await db.execute(text(f"""
         SELECT 
             COUNT(*) as total_tasks,
             COUNT(*) FILTER (WHERE sla_due_at IS NOT NULL) as total_with_sla,
@@ -1635,8 +1719,9 @@ async def get_sla_performance(
             COUNT(*) FILTER (WHERE sla_due_at < NOW() AND status NOT IN ('ready_to_publish', 'completed')) as overdue_active,
             COUNT(*) FILTER (WHERE sla_due_at >= NOW() AND sla_due_at <= NOW() + INTERVAL '48 hours' AND status NOT IN ('ready_to_publish', 'completed')) as approaching_active,
             COUNT(*) FILTER (WHERE status = 'completed') as total_completed
-        FROM tasks;
-    """))
+        FROM tasks
+        WHERE {_in_agency('agency_id')};
+    """), scope)
     st = q_stats.fetchone()
     total_with_sla = (st[1] if st else 0) or 0
     completed_on_time = (st[2] if st else 0) or 0
@@ -1655,15 +1740,16 @@ async def get_sla_performance(
     resolution_rate = max(0.0, round(overall_compliance * 0.993, 1))
 
     # 2. Priority / Deliverable breakdown
-    q_prio = await db.execute(text("""
+    q_prio = await db.execute(text(f"""
         SELECT 
             t.deliverable_type,
             COUNT(t.id) as total,
             COUNT(t.id) FILTER (WHERE t.sla_due_at < NOW() AND t.status NOT IN ('ready_to_publish', 'completed')) as overdue
         FROM tasks t
+        WHERE {_in_agency('t.agency_id')}
         GROUP BY t.deliverable_type
         ORDER BY total DESC;
-    """))
+    """), scope)
     prio_rows = q_prio.fetchall()
     
     prio_map = {
@@ -1701,7 +1787,7 @@ async def get_sla_performance(
         })
 
     # 3. Pods efficiency leaderboard
-    q_pods = await db.execute(text("""
+    q_pods = await db.execute(text(f"""
         SELECT 
             t.id as team_id,
             t.name as pod_name,
@@ -1713,9 +1799,10 @@ async def get_sla_performance(
         LEFT JOIN users u ON u.id = t.lead_id
         LEFT JOIN client_assignments ca ON ca.user_id = t.lead_id AND ca.role = 'team_lead'
         LEFT JOIN tasks tsk ON tsk.client_id = ca.client_id
+        WHERE {_in_agency('t.agency_id')}
         GROUP BY t.id, t.name, u.full_name
         ORDER BY t.name ASC;
-    """))
+    """), scope)
     pod_rows = q_pods.fetchall()
     pods = []
     
@@ -1758,7 +1845,7 @@ async def get_sla_performance(
         })
 
     # 4. Live Active Warnings (Overdue + Approaching < 72h)
-    q_warnings = await db.execute(text("""
+    q_warnings = await db.execute(text(f"""
         SELECT 
             t.id,
             t.deliverable_type,
@@ -1775,9 +1862,10 @@ async def get_sla_performance(
         WHERE t.status NOT IN ('ready_to_publish', 'completed')
           AND t.sla_due_at IS NOT NULL
           AND t.sla_due_at <= NOW() + INTERVAL '72 hours'
+          AND {_in_agency('t.agency_id')}
         ORDER BY t.sla_due_at ASC
         LIMIT 6;
-    """))
+    """), scope)
     warning_rows = q_warnings.fetchall()
     active_warnings = []
     
@@ -1887,6 +1975,9 @@ async def update_plan(
 
     if not plan:
         raise NotFound(f"Plan {plan_id_or_name} not found", code="PLAN_NOT_FOUND")
+    # Global plans are platform-wide: only a super admin edits them. Agency plans: own agency only.
+    if actor.role != UserRole.SUPER_ADMIN and (not actor.agency_id or plan.agency_id != actor.agency_id):
+        raise Forbidden("You can only edit your own agency's plans")
 
     changes: dict[str, Any] = {}
     if payload.price_minor is not None:
@@ -1939,6 +2030,23 @@ async def update_plan(
     }
 
 
+BDE_ROLES = {UserRole.SALES, UserRole.BDE, UserRole.BDE_HEAD}
+
+
+def _assert_manageable_user(actor: Actor, user: User, roles: set | None = None) -> None:
+    """Admins (and team leads) may manage only non-admin users of their own agency; super admins anyone.
+    With roles, the target must also hold one of them (e.g. the BDE routes act on BDE accounts only)."""
+    if roles is not None and user.role not in roles:
+        raise NotFound("User not found")
+    if actor.role == UserRole.SUPER_ADMIN:
+        return
+    if user.role in (UserRole.ADMIN, UserRole.SUPER_ADMIN):
+        raise Forbidden("You cannot manage an admin account")
+    if not actor.agency_id or user.agency_id != actor.agency_id:
+        raise Forbidden("This user belongs to another agency")
+
+
+
 @router.post("/users/{user_id}/suspend")
 async def suspend_user(
     user_id: uuid.UUID,
@@ -1949,6 +2057,7 @@ async def suspend_user(
     user = await db.get(User, user_id)
     if not user:
         raise NotFound(f"User {user_id} not found", code="USER_NOT_FOUND")
+    _assert_manageable_user(actor, user, None)
 
     user.account_status = AccountStatus.SUSPENDED
     user.token_version += 1
@@ -2015,6 +2124,9 @@ async def offboard_client(
             .with_for_update()
             .limit(1)
         )
+        if actor.role != UserRole.SUPER_ADMIN:
+            # Keep the slug search inside the actor's agency.
+            search_stmt = search_stmt.where(User.agency_id == actor.agency_id)
         res = await db.execute(search_stmt)
         client = res.scalar_one_or_none()
 
@@ -2080,6 +2192,7 @@ async def remove_client_plan(
     user = await db.get(User, client_id)
     if not user:
         raise NotFound(f"Client {client_id} not found", code="CLIENT_NOT_FOUND")
+    _assert_client_in_scope(actor, user)
 
     reason = payload.reason if payload and payload.reason else "Admin removed plan / refund request"
 
@@ -2435,6 +2548,9 @@ async def admin_patch_client_plan(
 ) -> dict[str, Any]:
     """Change client plan: 'next_cycle' (safe default) or 'immediate' (rejects with 409 if cycle active)."""
     from app.services.calendar_engine import admin_change_client_plan
+    from app.core.client_scope import ensure_client_access
+
+    await ensure_client_access(db, actor, client_id, write=True, allow_client=False)
 
     return await admin_change_client_plan(db, client_id, payload.plan_id, payload.effective, actor)
 
@@ -2448,6 +2564,9 @@ async def admin_patch_calendar_policy(
 ) -> dict[str, Any]:
     """Full L2 calendar policy override."""
     from app.services.calendar_engine import admin_set_calendar_policy
+    from app.core.client_scope import ensure_client_access
+
+    await ensure_client_access(db, actor, client_id, write=True, allow_client=False)
 
     policy = await admin_set_calendar_policy(db, client_id, payload.policy, actor)
     return {"status": "policy_updated", "client_id": str(client_id), "source": policy.source}
@@ -2462,6 +2581,9 @@ async def admin_patch_reel_lag(
 ) -> dict[str, Any]:
     """Update reel lag days (3..21) per client, affecting future cycles and shoots."""
     from app.services.calendar_engine import admin_set_reel_lag
+    from app.core.client_scope import ensure_client_access
+
+    await ensure_client_access(db, actor, client_id, write=True, allow_client=False)
 
     policy = await admin_set_reel_lag(db, client_id, payload.days, actor)
     return {"status": "reel_lag_updated", "client_id": str(client_id), "reel_lag_days": payload.days}
@@ -2476,6 +2598,9 @@ async def admin_post_regenerate_cycle(
 ) -> dict[str, Any]:
     """Regenerate draft cycle slots with fresh placement math."""
     from app.services.calendar_engine import admin_regenerate_cycle
+    from app.core.client_scope import ensure_client_access
+
+    await ensure_client_access(db, actor, client_id, write=True, allow_client=False)
 
     cycle, shoot_days, slots = await admin_regenerate_cycle(db, client_id, cycle_number, actor)
     return {
@@ -2496,6 +2621,12 @@ async def admin_post_blackout(
     """Add a calendar blackout date (client-specific or global)."""
     from app.services.calendar_engine import admin_add_blackout
 
+    # Client blackouts: own agency's clients only. Platform-wide blackouts: super admins only.
+    if payload.client_id:
+        from app.core.client_scope import ensure_client_access
+        await ensure_client_access(db, actor, payload.client_id, write=True, allow_client=False)
+    elif actor.role != UserRole.SUPER_ADMIN:
+        raise Forbidden("Only a super admin can add a platform-wide blackout")
     b = await admin_add_blackout(db, payload.date, payload.reason, payload.client_id, actor)
     return {
         "status": "blackout_created",
@@ -2526,6 +2657,9 @@ async def get_announcements(
         .join(User, User.id == Announcement.author_id, isouter=True)
         .order_by(Announcement.created_at.desc())
     )
+    agency = _agency_filter(actor)
+    if agency:
+        stmt = stmt.where(Announcement.agency_id == actor.agency_id)
     res = await db.execute(stmt)
     rows = res.fetchall()
 
@@ -2586,6 +2720,7 @@ async def create_announcement(
         content=clean_content,
         type=clean_type,
         target_departments=target_depts,
+        agency_id=actor.agency_id,
     )
     db.add(ann)
     await db.flush()
@@ -2597,6 +2732,8 @@ async def create_announcement(
             .outerjoin(StaffProfile, StaffProfile.user_id == User.id)
             .where(User.account_status == "active")
         )
+        if _agency_filter(actor):
+            users_stmt = users_stmt.where(User.agency_id == actor.agency_id)
         users_res = await db.execute(users_stmt)
         user_rows = users_res.fetchall()
 
@@ -2709,7 +2846,8 @@ async def get_team_members(
     is_tl_only = actor.role in (UserRole.TEAM_LEAD, "team_lead")
 
     where_clause = "WHERE u.role IN ('editor', 'designer', 'team_lead', 'sales', 'bde', 'bde_head', 'freelancer', 'admin', 'super_admin')"
-    params: dict[str, Any] = {}
+    params: dict[str, Any] = {"agency": _agency_filter(actor)}
+    where_clause += " AND " + _in_agency("u.agency_id")
 
     if is_tl_only:
         where_clause += " AND (sp.team_lead_id = :actor_id OR u.id = :actor_id)"
@@ -2812,8 +2950,13 @@ async def create_team_member(
         if user_role not in [UserRole.EDITOR, UserRole.DESIGNER]:
             user_role = UserRole.EDITOR
         target_tl_id = actor.user_id
+    elif actor.role != UserRole.SUPER_ADMIN and user_role in (UserRole.ADMIN, UserRole.SUPER_ADMIN):
+        # Only a platform super admin may create admin or super admin accounts.
+        raise Forbidden("Only a super admin can create admin accounts")
 
     new_user = User(
+        # New staff belong to the creator's agency, so later agency checks apply to them.
+        agency_id=actor.agency_id,
         auth_id=f"auth-staff-{uuid.uuid4().hex[:12]}",
         email=payload.email.lower().strip(),
         full_name=payload.full_name.strip(),
@@ -2889,6 +3032,17 @@ async def update_member_credentials(
     user = await db.get(User, user_id)
     if not user:
         raise NotFound(f"User {user_id} not found")
+    # Scope: super admins anyone; admins only non-admin users of their own agency;
+    # team leads only editors/designers in their own pod.
+    if actor.role != UserRole.SUPER_ADMIN:
+        if user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+            raise Forbidden("You cannot change this account's credentials")
+        if not actor.agency_id or user.agency_id != actor.agency_id:
+            raise Forbidden("This user belongs to another agency")
+        if actor.role == UserRole.TEAM_LEAD:
+            sp = (await db.execute(select(StaffProfile).where(StaffProfile.user_id == user.id))).scalar_one_or_none()
+            if user.role not in {UserRole.EDITOR, UserRole.DESIGNER} or sp is None or sp.team_lead_id != actor.user_id:
+                raise Forbidden("You can only change credentials for your own pod members")
 
     if payload.email and payload.email.strip().lower() != user.email.lower():
         clean_email = payload.email.strip().lower()
@@ -2899,6 +3053,7 @@ async def update_member_credentials(
 
     new_password = payload.password.strip()
     user.hashed_password = hash_password(new_password)
+    user.token_version += 1  # end the old sessions
     await db.commit()
 
     email_delivered = False
@@ -2945,6 +3100,12 @@ async def resend_credentials_email(
     user = await db.get(User, user_id)
     if not user:
         raise NotFound(f"User {user_id} not found")
+    # Same scope as changing credentials: a lead only for their own pod, an admin only in their agency.
+    _assert_manageable_user(actor, user)
+    if actor.role == UserRole.TEAM_LEAD:
+        sp_owner = await db.get(StaffProfile, user.id)
+        if sp_owner is None or sp_owner.team_lead_id != actor.user_id:
+            raise Forbidden("You can only email credentials to your own pod members")
 
     target_dispatch = payload.dispatch_email.strip() if (payload.dispatch_email and payload.dispatch_email.strip()) else user.email
     delivered = await send_credentials_email(
@@ -2980,6 +3141,9 @@ async def update_team_member(
     # If actor is team_lead, they can ONLY edit members assigned to their pod
     if actor.role in (UserRole.TEAM_LEAD, "team_lead") and sp.team_lead_id != actor.user_id and user_id != actor.user_id:
         raise Forbidden("Team Leads can only adjust capacity and skills for their own team members.")
+    member = await db.get(User, user_id)
+    if member is not None and member.id != actor.user_id:
+        _assert_manageable_user(actor, member)
 
     if payload.daily_capacity is not None:
         sp.daily_capacity = max(1, payload.daily_capacity)
@@ -3016,6 +3180,7 @@ async def remove_team_member(
     # If actor is team_lead, they can ONLY remove members from their pod
     if actor.role in (UserRole.TEAM_LEAD, "team_lead") and (not sp or sp.team_lead_id != actor.user_id):
         raise Forbidden("Team Leads can only remove members belonging to their own pod.")
+    _assert_manageable_user(actor, user)
 
     user.account_status = AccountStatus.SUSPENDED
     if sp:
@@ -3061,6 +3226,8 @@ async def list_bde_team(
         .where(User.role.in_([UserRole.SALES, "sales", "bde"]))
         .order_by(User.created_at.asc())
     )
+    if _agency_filter(actor):
+        bde_stmt = bde_stmt.where(User.agency_id == actor.agency_id)
     bde_users = (await db.execute(bde_stmt)).scalars().all()
 
     results: list[dict[str, Any]] = []
@@ -3151,6 +3318,7 @@ async def onboard_bde(
     )
 
     new_bde = User(
+        agency_id=actor.agency_id,
         auth_id=f"auth-bde-{uuid.uuid4().hex[:12]}",
         email=clean_email,
         full_name=payload.full_name.strip(),
@@ -3236,6 +3404,7 @@ async def update_bde_credentials(
     user = await db.get(User, bde_id)
     if not user:
         raise NotFound(f"BDE user {bde_id} not found")
+    _assert_manageable_user(actor, user, BDE_ROLES)
 
     if payload.email and payload.email.strip().lower() != user.email.lower():
         clean_email = payload.email.strip().lower()
@@ -3287,6 +3456,7 @@ async def deactivate_bde(
     user = await db.get(User, bde_id)
     if not user:
         raise NotFound(f"BDE user {bde_id} not found")
+    _assert_manageable_user(actor, user, BDE_ROLES)
 
     if permanent:
         # Unassign any leads assigned to this BDE
@@ -3333,6 +3503,7 @@ async def reactivate_bde(
     user = await db.get(User, bde_id)
     if not user:
         raise NotFound(f"BDE user {bde_id} not found")
+    _assert_manageable_user(actor, user, BDE_ROLES)
 
     user.account_status = AccountStatus.ACTIVE
     user.token_version = (user.token_version or 0) + 1
@@ -3444,6 +3615,8 @@ async def get_sla_escalations(
         .order_by(Task.updated_at.desc())
         .limit(30)
     )
+    if _agency_filter(actor):
+        stmt = stmt.where(Task.agency_id == actor.agency_id)
     rows = (await db.execute(stmt)).all()
 
     escalations: list[dict[str, Any]] = []
@@ -3534,24 +3707,28 @@ DEFAULT_PLATFORM_SETTINGS: dict[str, Any] = {
 }
 
 
+def _settings_key(actor: Actor) -> str:
+    """Super admins edit the platform defaults; each agency admin edits only their own agency's copy."""
+    if actor.role == UserRole.SUPER_ADMIN:
+        return "global"
+    if not actor.agency_id:
+        raise Forbidden("Your account has no agency")
+    return f"agency:{actor.agency_id}"
+
+
 @router.get("/settings")
 async def get_admin_settings(
     db: AsyncSession = Depends(get_db),
     actor: Actor = AdminActor,
 ) -> dict[str, Any]:
-    """Fetch agency platform configuration from DB."""
+    """Platform defaults, overlaid with the caller's agency settings."""
     from app.models.ops import PlatformSetting
-    stmt = select(PlatformSetting).where(PlatformSetting.key == "global")
-    record = (await db.execute(stmt)).scalar_one_or_none()
-
-    if not record:
-        record = PlatformSetting(key="global", value=DEFAULT_PLATFORM_SETTINGS)
-        db.add(record)
-        await db.commit()
-        await db.refresh(record)
 
     merged = dict(DEFAULT_PLATFORM_SETTINGS)
-    merged.update(record.value or {})
+    for key in dict.fromkeys(["global", _settings_key(actor)]):
+        record = (await db.execute(select(PlatformSetting).where(PlatformSetting.key == key))).scalar_one_or_none()
+        if record:
+            merged.update(record.value or {})
     return merged
 
 
@@ -3561,18 +3738,19 @@ async def update_admin_settings(
     db: AsyncSession = Depends(get_db),
     actor: Actor = AdminActor,
 ) -> dict[str, Any]:
-    """Persist agency platform configuration in database platform_settings table."""
+    """Save settings for the caller's agency (super admins: the platform defaults). Known keys only."""
     from app.models.ops import PlatformSetting
-    stmt = select(PlatformSetting).where(PlatformSetting.key == "global")
-    record = (await db.execute(stmt)).scalar_one_or_none()
 
+    unknown = sorted(set(payload) - set(DEFAULT_PLATFORM_SETTINGS))
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"Unknown settings: {', '.join(unknown)}")
+    key = _settings_key(actor)
+    record = (await db.execute(select(PlatformSetting).where(PlatformSetting.key == key))).scalar_one_or_none()
     if not record:
-        record = PlatformSetting(key="global", value=payload)
+        record = PlatformSetting(key=key, value=payload)
         db.add(record)
     else:
-        new_val = dict(record.value or {})
-        new_val.update(payload)
-        record.value = new_val
+        record.value = {**(record.value or {}), **payload}
 
     await db.commit()
     await db.refresh(record)
@@ -3591,6 +3769,8 @@ async def get_admin_sales(
 ) -> dict[str, Any]:
     """Return distinct subscription tiers, active counts, slot availability, and custom enterprise deals."""
     sub_counts_q = select(Subscription.plan_id, func.count(Subscription.id)).where(Subscription.status == "active").group_by(Subscription.plan_id)
+    if _agency_filter(actor):
+        sub_counts_q = sub_counts_q.join(User, User.id == Subscription.client_id).where(User.agency_id == actor.agency_id)
     sub_rows = (await db.execute(sub_counts_q)).all()
     sub_counts = {r[0]: r[1] for r in sub_rows}
 
@@ -3664,6 +3844,9 @@ async def get_admin_reports(
     """Provide real-time executive financial metrics, SLA compliance, and asset format breakdown."""
     # 1. Real Active Clients count (no artificial flooring)
     client_q = select(func.count(User.id)).where(User.role == UserRole.CLIENT, User.account_status == AccountStatus.ACTIVE)
+    scoped = _agency_filter(actor) is not None
+    if scoped:
+        client_q = client_q.where(User.agency_id == actor.agency_id)
     active_clients = (await db.execute(client_q)).scalar() or 0
 
     # 2. Single source of truth query for MRR (Deduplicate clients, exclude trialing)
@@ -3677,6 +3860,8 @@ async def get_admin_reports(
         .where(Subscription.status == SubscriptionStatus.ACTIVE)
         .group_by(Subscription.client_id)
     )
+    if scoped:
+        sub_q = sub_q.join(User, User.id == Subscription.client_id).where(User.agency_id == actor.agency_id)
     sub_rows = (await db.execute(sub_q)).all()
 
     mrr_total = 0
@@ -3690,6 +3875,8 @@ async def get_admin_reports(
 
     # 3. Deliverable format breakdown from Deliverable table
     deliv_q = select(Deliverable.file_type, func.count(Deliverable.id)).group_by(Deliverable.file_type)
+    if scoped:
+        deliv_q = deliv_q.where(Deliverable.agency_id == actor.agency_id)
     deliv_rows = (await db.execute(deliv_q)).all()
 
     format_counts: dict[str, int] = {
@@ -3766,10 +3953,12 @@ async def get_recent_transactions(
         LEFT JOIN client_profiles cp ON cp.user_id = u.id
         LEFT JOIN plans p ON p.id = s.plan_id
         WHERE s.status IN ('active', 'trialing')
+          AND """ + _in_agency("u.agency_id") + """
         ORDER BY s.created_at DESC
         LIMIT 50
     """)
-    res = await db.execute(sql)
+    scope = {"agency": _agency_filter(actor)}
+    res = await db.execute(sql, scope)
     rows = res.fetchall()
 
     transactions = []
@@ -3827,11 +4016,12 @@ async def get_recent_transactions(
         JOIN split_payment_packages spp ON spp.id = pi.package_id
         LEFT JOIN client_profiles cp ON cp.user_id = u.id
         WHERE pi.status = 'paid'
+          AND """ + _in_agency("u.agency_id") + """
         ORDER BY COALESCE(pi.paid_at, pi.created_at) DESC
         LIMIT 50
     """)
     try:
-        inst_res = await db.execute(inst_sql)
+        inst_res = await db.execute(inst_sql, scope)
         for ir in inst_res.fetchall():
             inst_id_str = str(ir[0])
             if inst_id_str in seen_ids:
@@ -3877,11 +4067,12 @@ async def get_recent_transactions(
         JOIN users u ON u.id::TEXT = pe.payload->>'client_id'
         LEFT JOIN client_profiles cp ON cp.user_id = u.id
         WHERE pe.event_type = 'addon.payment.captured'
+          AND """ + _in_agency("u.agency_id") + """
         ORDER BY pe.received_at DESC
         LIMIT 50
     """)
     try:
-        addon_res = await db.execute(addon_sql)
+        addon_res = await db.execute(addon_sql, scope)
         for ar in addon_res.fetchall():
             ev_id = str(ar[0])
             if ev_id in seen_ids:
@@ -4123,6 +4314,8 @@ async def list_admin_team_roster(
         ]))
         .order_by(User.created_at.asc())
     )
+    if _agency_filter(actor):
+        stmt = stmt.where(User.agency_id == actor.agency_id)
     rows = (await db.execute(stmt)).all()
 
     members = []
@@ -4320,8 +4513,14 @@ async def create_admin_deliverable(
         raise HTTPException(status_code=404, detail="Client user not found")
     if storage_service.resolve_media_url(payload.file_url, request) is None:
         raise HTTPException(status_code=422, detail="file_url must be a stored file, not a placeholder")
-    if payload.file_url.startswith("clients/") and not payload.file_url.startswith(f"clients/{client.id}/"):
-        raise HTTPException(status_code=403, detail="Storage key does not belong to this client")
+    # Only a storage key in this client's own namespace: no outside URLs (fetched server-side
+    # later), no other client's key behind an r2:// or supabase:// prefix, no ../ segments.
+    key = payload.file_url.split("://", 1)[1] if payload.file_url.startswith(("r2://", "supabase://")) else payload.file_url
+    if (
+        not key.startswith(f"clients/{client.id}/")
+        or any(part in ("", ".", "..") for part in key.split("/"))
+    ):
+        raise HTTPException(status_code=403, detail="file_url must be a storage key in this client's folder")
 
     if task is None:
         try:
@@ -4409,6 +4608,8 @@ async def list_admin_support_tickets(
         )
         .order_by(Ticket.created_at.desc())
     )
+    from app.routers.tickets import _scope_staff_list
+    stmt = _scope_staff_list(stmt, actor)
     res = await db.execute(stmt)
     tickets = res.scalars().all()
 
@@ -4469,6 +4670,11 @@ async def get_admin_ticket_messages(
     actor: Actor = StaffActor,
 ) -> list[dict[str, Any]]:
     """Retrieve message history for a specific ticket."""
+    from app.routers.tickets import _staff_may_access
+    owner = await db.get(Ticket, ticket_id)
+    if owner is None:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    await _staff_may_access(db, actor, owner.client_id)
     stmt = (
         select(TicketMessage, User.full_name, User.email, User.role)
         .outerjoin(User, User.id == TicketMessage.sender_id)
@@ -4501,6 +4707,8 @@ async def post_admin_ticket_message(
     ticket = await db.get(Ticket, ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+    from app.routers.tickets import _staff_may_access
+    await _staff_may_access(db, actor, ticket.client_id)
 
     text_content = payload.message_text or payload.message
     if not text_content:
@@ -4544,6 +4752,8 @@ async def update_ticket_status(
     ticket = await db.get(Ticket, ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+    from app.routers.tickets import _staff_may_access
+    await _staff_may_access(db, actor, ticket.client_id)
 
     try:
         ticket.status = TicketStatus(payload.status)
@@ -4608,6 +4818,8 @@ async def list_admin_leave_requests(
             )
         else:
             stmt = stmt.where(LeaveRequest.user_id == actor.user_id)
+    if actor.role != UserRole.SUPER_ADMIN:
+        stmt = stmt.where(User.agency_id == actor.agency_id) if actor.agency_id else stmt.where(LeaveRequest.user_id == actor.user_id)
 
     res = await db.execute(stmt)
     rows = res.fetchall()
@@ -5053,10 +5265,10 @@ async def get_admin_calendar(
         raise HTTPException(status_code=400, detail="Invalid calendar month or year.")
 
     def scope_calendar(stmt: Any, client_column: Any) -> Any:
-        if actor.role in (UserRole.SUPER_ADMIN, UserRole.ADMIN, "super_admin", "admin"):
+        if actor.role in (UserRole.SUPER_ADMIN, "super_admin"):
             return stmt
-        if actor.agency_id:
-            stmt = stmt.where(or_(User.agency_id == actor.agency_id, User.agency_id.is_(None)))
+        # Everyone else stays inside their own agency; no agency means no rows.
+        stmt = stmt.where(User.agency_id == _agency_filter(actor))
         if actor.role not in (UserRole.ADMIN, UserRole.SUPER_ADMIN, "admin", "super_admin"):
             assigned_clients = select(ClientAssignment.client_id).where(ClientAssignment.user_id == actor.user_id)
             stmt = stmt.where(client_column.in_(assigned_clients))
@@ -5270,6 +5482,13 @@ class AdminCreateCalendarEventPayload(BaseModel):
     status: str = Field(default="scheduled")
 
 
+async def _scope_calendar_client(db: AsyncSession, actor: Actor, client_id: uuid.UUID | None) -> None:
+    """Calendar entries and deliverables belong to a client: admins act only in their own agency."""
+    from app.core.client_scope import ensure_client_access
+    if client_id is not None:
+        await ensure_client_access(db, actor, client_id, write=True, allow_client=False)
+
+
 @router.post("/calendar/events")
 async def admin_create_calendar_event(
     payload: AdminCreateCalendarEventPayload,
@@ -5280,6 +5499,7 @@ async def admin_create_calendar_event(
     client = await db.get(User, payload.client_id)
     if not client or client.role != UserRole.CLIENT:
         raise NotFound("Client not found")
+    await _scope_calendar_client(db, actor, payload.client_id)
 
     fmt = payload.format_type.lower()
     slot_kind = "reel" if "reel" in fmt else "story" if "story" in fmt else "carousel" if "carousel" in fmt else "poster"
@@ -5319,6 +5539,7 @@ async def admin_update_calendar_event(
     """Admin updates or reschedules a content calendar event."""
     entry = await db.get(ContentCalendar, event_id)
     if entry:
+        await _scope_calendar_client(db, actor, entry.client_id)
         if payload.publish_date is not None:
             entry.publish_date = payload.publish_date
         if payload.scheduled_time is not None:
@@ -5358,6 +5579,7 @@ async def admin_update_calendar_event(
 
     deliv = await db.get(Deliverable, event_id)
     if deliv:
+        await _scope_calendar_client(db, actor, deliv.client_id)
         if payload.publish_date is not None:
             deliv.scheduled_at = datetime.combine(payload.publish_date, datetime.min.time().replace(hour=11), tzinfo=timezone.utc)
         if payload.status is not None:
@@ -5413,6 +5635,7 @@ async def admin_approve_and_publish_event(
 
     if not deliv and not cal_entry:
         raise NotFound("Calendar entry or deliverable not found.")
+    await _scope_calendar_client(db, actor, deliv.client_id if deliv else cal_entry.client_id)
 
     from app.services import deliverable_state
     now = datetime.now(timezone.utc)
@@ -5542,12 +5765,14 @@ async def admin_delete_calendar_event(
     """Admin removes a scheduled event from the calendar."""
     entry = await db.get(ContentCalendar, event_id)
     if entry:
+        await _scope_calendar_client(db, actor, entry.client_id)
         await db.delete(entry)
         await db.commit()
         return {"message": "Calendar event removed"}
 
     deliv = await db.get(Deliverable, event_id)
     if deliv:
+        await _scope_calendar_client(db, actor, deliv.client_id)
         deliv.scheduled_at = None
         await db.commit()
         return {"message": "Deliverable unscheduled"}
@@ -6022,13 +6247,17 @@ async def pod_task_reassign(
     actor: Actor = StaffActor,
 ) -> dict[str, Any]:
     """Reassign task to a specialist within the pod."""
-    task = await db.get(Task, task_id)
+    task = await deliverable_workflow.get_task_for_actor(db, actor, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
     new_assignee = await db.get(User, payload.assignee_id)
     if not new_assignee:
         raise HTTPException(status_code=404, detail="Assignee not found")
+    if actor.role in (UserRole.EDITOR, UserRole.DESIGNER):
+        raise Forbidden("Only team leads and admins can reassign work")
+    if actor.role != UserRole.SUPER_ADMIN and task.agency_id and new_assignee.agency_id != task.agency_id:
+        raise Forbidden("Choose a specialist in the client's agency")
 
     old_assignee_id = task.assigned_to
     task.assigned_to = new_assignee.id
@@ -6065,6 +6294,7 @@ async def pod_task_reassign(
 # ─────────────────────────────────────────────────────────────────────────────
 
 from app.models.billing import PlanNegotiation  # noqa: E402
+from app.models.crm import Lead  # noqa: E402
 
 
 CommercialActor = Depends(
@@ -6683,7 +6913,7 @@ def _assert_client_in_scope(actor: Actor, client: User | None) -> None:
     """An agency admin may only handle money for their own agency's clients."""
     if client is None:
         raise HTTPException(status_code=404, detail="Client not found")
-    if actor.role != UserRole.SUPER_ADMIN and actor.agency_id and client.agency_id != actor.agency_id:
+    if actor.role != UserRole.SUPER_ADMIN and (not actor.agency_id or client.agency_id != actor.agency_id):
         raise HTTPException(status_code=403, detail="Client belongs to another agency")
 
 
@@ -7313,6 +7543,8 @@ async def list_freelancers(
         .where(User.role == UserRole.FREELANCER)
         .order_by(User.created_at.desc())
     )
+    if _agency_filter(actor):
+        query = query.where(User.agency_id == actor.agency_id)
     res = await db.execute(query)
     rows = res.all()
 
@@ -7363,6 +7595,7 @@ async def update_freelancer_status(
     user = user_res.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="Freelancer user not found.")
+    _assert_manageable_user(actor, user)
 
     prof_res = await db.execute(select(FreelancerProfile).where(FreelancerProfile.user_id == freelancer_id))
     profile = prof_res.scalar_one_or_none()
@@ -7404,6 +7637,8 @@ async def list_admin_deliverables(
     deliv_stmt = select(Deliverable).where(Deliverable.is_archived.is_(False))
     if client_id:
         deliv_stmt = deliv_stmt.where(Deliverable.client_id == client_id)
+    if _agency_filter(actor):
+        deliv_stmt = deliv_stmt.where(Deliverable.agency_id == actor.agency_id)
     deliv_stmt = deliv_stmt.order_by(Deliverable.created_at.desc()).limit(150)
     deliverables = (await db.execute(deliv_stmt)).scalars().all()
 
@@ -7450,6 +7685,8 @@ async def list_admin_deliverables(
     )
     if client_id:
         task_stmt = task_stmt.where(Task.client_id == client_id)
+    if _agency_filter(actor):
+        task_stmt = task_stmt.where(Task.agency_id == actor.agency_id)
     task_stmt = task_stmt.order_by(Task.created_at.desc()).limit(150)
     tasks = (await db.execute(task_stmt)).scalars().all()
 
@@ -7544,7 +7781,10 @@ async def assign_freelancer_to_task(
     task_title = payload.task_title or "Deliverable Task"
 
     if payload.task_id:
-        task = (await db.execute(select(Task).where(Task.id == payload.task_id))).scalar_one_or_none()
+        # Only tasks the lead/admin may manage, and only to a freelancer of the same agency.
+        task = await deliverable_workflow.get_task_for_actor(db, actor, payload.task_id)
+        if user.role != UserRole.FREELANCER or (actor.role != UserRole.SUPER_ADMIN and task.agency_id and user.agency_id != task.agency_id):
+            raise Forbidden("Choose a freelancer in the client's agency")
         if not task:
             raise HTTPException(status_code=404, detail="Task not found.")
         task.assigned_to = user.id
@@ -7866,7 +8106,12 @@ async def freelancer_start_task(
     """Mark assigned task as in production / work in progress."""
     if actor.role != UserRole.FREELANCER and actor.role not in (UserRole.ADMIN, UserRole.SUPER_ADMIN):
         raise HTTPException(status_code=403, detail="Only freelancers can update task work status.")
+    # Freelancers only on tasks assigned to them; admins only within their agency.
     task = (await db.execute(select(Task).where(Task.id == task_id))).scalar_one_or_none()
+    if task is not None and actor.role == UserRole.FREELANCER and task.assigned_to != actor.user_id:
+        task = None
+    if task is not None and actor.role == UserRole.ADMIN:
+        await deliverable_workflow.ensure_task_access(db, actor, task)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found.")
     task.status = TaskStatus.IN_PRODUCTION
@@ -7886,7 +8131,12 @@ async def freelancer_upload_content(
     """Upload deliverable video/image/asset directly for a task."""
     if actor.role != UserRole.FREELANCER and actor.role not in (UserRole.ADMIN, UserRole.SUPER_ADMIN):
         raise HTTPException(status_code=403, detail="Only freelancers can upload deliverables via this portal.")
+    # Freelancers only on tasks assigned to them; admins only within their agency.
     task = (await db.execute(select(Task).where(Task.id == task_id))).scalar_one_or_none()
+    if task is not None and actor.role == UserRole.FREELANCER and task.assigned_to != actor.user_id:
+        task = None
+    if task is not None and actor.role == UserRole.ADMIN:
+        await deliverable_workflow.ensure_task_access(db, actor, task)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found.")
 
@@ -8180,269 +8430,4 @@ async def get_team_productivity_metrics(
             "underutilized": underutilized,
         },
     }
-
-
-# ============================================================================
-# 2.8 BDE SALES SPECIALIST ONBOARDING, CREDENTIALS, AND ROSTER MANAGEMENT
-# ============================================================================
-
-class OnboardBDERequest(BaseModel):
-    full_name: str
-    email: str
-    phone: str | None = None
-    designation: str = "Business Development Executive"
-    monthly_quota: int = 2500000
-    commission_rate: float = 5.0
-    password: str
-    dispatch_email: str | None = None
-    send_credentials_email: bool = True
-
-
-class UpdateBDECredsRequest(BaseModel):
-    password: str
-    dispatch_email: str | None = None
-    send_credentials_email: bool = True
-
-
-@router.get("/bde")
-async def list_bde_team(
-    db: AsyncSession = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
-) -> list[dict[str, Any]]:
-    """List all BDE sales representatives, target quotas, and converted revenue stats."""
-    from app.models.crm import Lead, BDETarget
-
-    # Fetch all users with UserRole.SALES
-    stmt = (
-        select(User)
-        .where(User.role == UserRole.SALES)
-        .order_by(User.created_at.asc())
-    )
-    res = await db.execute(stmt)
-    sales_users = res.scalars().all()
-
-    current_month = datetime.now(UTC).strftime("%Y-%m")
-    out: list[dict[str, Any]] = []
-
-    for user in sales_users:
-        # Fetch target quota for current month or latest
-        t_stmt = (
-            select(BDETarget)
-            .where(BDETarget.bde_id == user.id)
-            .order_by(BDETarget.created_at.desc())
-        )
-        target = (await db.execute(t_stmt)).scalars().first()
-
-        # Aggregate leads assigned to this BDE
-        l_stmt = select(Lead).where(Lead.assigned_bde_id == user.id)
-        leads = (await db.execute(l_stmt)).scalars().all()
-
-        total_leads = len(leads)
-        won_leads = [l for l in leads if (l.status or "").lower() == "converted"]
-        deals_won = len(won_leads)
-        closed_revenue = sum(l.estimated_deal_value for l in won_leads)
-
-        active_statuses = ("new", "contacted", "meeting_scheduled", "proposal_sent", "negotiation")
-        active_leads = [l for l in leads if (l.status or "").lower() in active_statuses]
-        active_pipeline = sum(l.estimated_deal_value for l in active_leads)
-
-        conversion_rate = round((deals_won / total_leads) * 100) if total_leads > 0 else 0
-        monthly_quota = target.monthly_quota if target else 2500000
-        commission_rate = target.commission_rate if target else 5.0
-
-        phone = ""
-        designation = "Business Development Executive"
-        if target and target.notes:
-            for part in target.notes.split("|"):
-                part = part.strip()
-                if part.lower().startswith("designation:"):
-                    designation = part.split(":", 1)[1].strip()
-                elif part.lower().startswith("phone:"):
-                    phone = part.split(":", 1)[1].strip()
-
-        out.append({
-            "id": str(user.id),
-            "full_name": user.full_name or "BDE Specialist",
-            "name": user.full_name or "BDE Specialist",
-            "email": user.email,
-            "phone": phone,
-            "designation": designation,
-            "monthly_quota": monthly_quota,
-            "commission_rate": commission_rate,
-            "closed_revenue": closed_revenue,
-            "active_pipeline": active_pipeline,
-            "total_leads": total_leads,
-            "deals_won": deals_won,
-            "conversion_rate": conversion_rate,
-            "is_active": user.account_status == AccountStatus.ACTIVE,
-        })
-
-    return out
-
-
-@router.post("/bde/onboard")
-async def onboard_bde(
-    payload: OnboardBDERequest,
-    db: AsyncSession = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
-) -> dict[str, Any]:
-    """Onboard a new BDE, provision login credentials, configure sales quota, and dispatch email."""
-    from app.core.security import hash_password
-    from app.models.crm import BDETarget
-    from app.services.email_service import send_email
-
-    clean_email = payload.email.strip().lower()
-
-    # Check if user already exists
-    existing_user = (
-        await db.execute(select(User).where(func.lower(User.email) == clean_email))
-    ).scalar_one_or_none()
-
-    if existing_user:
-        if existing_user.role != UserRole.SALES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"User with email '{clean_email}' already exists with role '{existing_user.role.value}'."
-            )
-        user = existing_user
-        user.full_name = payload.full_name.strip()
-        user.hashed_password = hash_password(payload.password.strip())
-        user.account_status = AccountStatus.ACTIVE
-    else:
-        user = User(
-            email=clean_email,
-            auth_id=f"sales_{uuid.uuid4().hex[:12]}",
-            full_name=payload.full_name.strip(),
-            role=UserRole.SALES,
-            account_status=AccountStatus.ACTIVE,
-            hashed_password=hash_password(payload.password.strip()),
-            agency_id=actor.agency_id,
-        )
-        db.add(user)
-        await db.flush()
-
-    current_month = datetime.now(UTC).strftime("%Y-%m")
-    notes = f"Designation: {payload.designation.strip()} | Phone: {(payload.phone or '').strip()}"
-
-    t_stmt = select(BDETarget).where(BDETarget.bde_id == user.id, BDETarget.month == current_month)
-    target = (await db.execute(t_stmt)).scalar_one_or_none()
-    if target:
-        target.monthly_quota = payload.monthly_quota
-        target.commission_rate = payload.commission_rate
-        target.notes = notes
-    else:
-        target = BDETarget(
-            bde_id=user.id,
-            month=current_month,
-            monthly_quota=payload.monthly_quota,
-            commission_rate=payload.commission_rate,
-            notes=notes,
-        )
-        db.add(target)
-
-    await db.commit()
-
-    email_sent = False
-    target_dispatch = payload.dispatch_email.strip() if (payload.dispatch_email and payload.dispatch_email.strip()) else clean_email
-    is_separate_dispatch = bool(target_dispatch.lower() != clean_email.lower())
-
-    if payload.send_credentials_email:
-        subject = "Welcome to Creo Agency — Your BDE Sales Specialist Portal Access"
-        dispatch_line = f"""<p style="margin: 6px 0; font-size: 13px; color: #7FA0D6;">Dispatched to personal contact: <strong style="color: #FFFFFF;">{target_dispatch}</strong></p>""" if is_separate_dispatch else ""
-        html = f"""
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #0B111C; color: #FFFFFF; border-radius: 16px;">
-          <h2 style="color: #F59E0B; margin-top: 0;">Welcome to Creo, {user.full_name}!</h2>
-          <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">
-            You have been provisioned as a <strong>{payload.designation}</strong> in Creo's Revenue Engine.
-          </p>
-          <div style="background: #161F2D; border: 1px solid #2A3446; border-radius: 12px; padding: 18px; margin: 20px 0;">
-            <p style="margin: 6px 0; font-size: 13px; color: #94A3B8;">Portal URL: <a href="http://localhost:5173/auth" style="color: #38BDF8; font-weight: bold;">Login to Creo Portal</a></p>
-            <p style="margin: 6px 0; font-size: 13px; color: #94A3B8;">Login Email ID: <strong style="color: #FFFFFF;">{clean_email}</strong></p>
-            {dispatch_line}
-            <p style="margin: 6px 0; font-size: 13px; color: #94A3B8;">Temporary Password: <code style="background: #0B111C; padding: 4px 8px; border-radius: 6px; color: #F59E0B; font-size: 14px; font-weight: bold;">{payload.password.strip()}</code></p>
-            <p style="margin: 6px 0; font-size: 13px; color: #94A3B8;">Monthly Quota: <strong style="color: #10B981;">₹{payload.monthly_quota:,}</strong></p>
-            <p style="margin: 6px 0; font-size: 13px; color: #94A3B8;">Commission: <strong style="color: #A855F7;">{payload.commission_rate}%</strong></p>
-          </div>
-          <p style="color: #64748B; font-size: 12px;">Please log in, change your password if required, and start managing your high-priority deals and prospective clients.</p>
-        </div>
-        """
-        try:
-            email_sent = await send_email(to_email=target_dispatch, subject=subject, html_content=html)
-        except Exception as e:
-            logger.warning(f"Failed to send BDE credentials email to {target_dispatch}: {e}")
-
-    return {
-        "status": "success",
-        "id": str(user.id),
-        "email": user.email,
-        "full_name": user.full_name,
-        "dispatch_email": target_dispatch,
-        "email_dispatched": email_sent,
-        "message": f"BDE {user.full_name} onboarded successfully.",
-    }
-
-
-@router.patch("/bde/{bde_id}/credentials")
-async def update_bde_credentials(
-    bde_id: uuid.UUID,
-    payload: UpdateBDECredsRequest,
-    db: AsyncSession = Depends(get_db),
-    actor: Actor = Depends(get_current_actor),
-) -> dict[str, Any]:
-    """Update password for an existing BDE and optionally send an email notification."""
-    from app.core.security import hash_password
-    from app.services.email_service import send_email
-
-    user = (await db.execute(select(User).where(User.id == bde_id))).scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="BDE account not found.")
-
-    new_pass = payload.password.strip()
-    if len(new_pass) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
-
-    user.hashed_password = hash_password(new_pass)
-    await db.commit()
-
-    email_sent = False
-    target_dispatch = payload.dispatch_email.strip() if (payload.dispatch_email and payload.dispatch_email.strip()) else user.email
-    is_separate_dispatch = bool(target_dispatch.lower() != user.email.lower())
-
-    if payload.send_credentials_email:
-        subject = "Your Creo BDE Account Credentials Have Been Updated"
-        dispatch_line = f"""<p style="margin: 6px 0; font-size: 13px; color: #7FA0D6;">Dispatched to personal contact: <strong style="color: #FFFFFF;">{target_dispatch}</strong></p>""" if is_separate_dispatch else ""
-        html = f"""
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #0B111C; color: #FFFFFF; border-radius: 16px;">
-          <h2 style="color: #F59E0B; margin-top: 0;">Updated Creo Login Credentials</h2>
-          <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">
-            Hello {user.full_name}, your administrator has updated your BDE login password.
-          </p>
-          <div style="background: #161F2D; border: 1px solid #2A3446; border-radius: 12px; padding: 18px; margin: 20px 0;">
-            <p style="margin: 6px 0; font-size: 13px; color: #94A3B8;">Portal URL: <a href="http://localhost:5173/auth" style="color: #38BDF8; font-weight: bold;">Login to Creo Portal</a></p>
-            <p style="margin: 6px 0; font-size: 13px; color: #94A3B8;">Login Email ID: <strong style="color: #FFFFFF;">{user.email}</strong></p>
-            {dispatch_line}
-            <p style="margin: 6px 0; font-size: 13px; color: #94A3B8;">New Password: <code style="background: #0B111C; padding: 4px 8px; border-radius: 6px; color: #F59E0B; font-size: 14px; font-weight: bold;">{new_pass}</code></p>
-          </div>
-        </div>
-        """
-        try:
-            email_sent = await send_email(to_email=target_dispatch, subject=subject, html_content=html)
-        except Exception as e:
-            logger.warning(f"Failed to send updated BDE credentials email to {target_dispatch}: {e}")
-
-    return {
-        "status": "success",
-        "email_dispatched": email_sent,
-        "dispatch_email": target_dispatch,
-        "message": f"Credentials updated for {user.full_name}.",
-    }
-
-
-
-
-
-
-
-
-
 

@@ -120,6 +120,43 @@ def _is_admin_role(role: Any) -> bool:
     return _role_name(role) in {UserRole.ADMIN.value, UserRole.SUPER_ADMIN.value}
 
 
+def _is_super_admin(role: Any) -> bool:
+    return _role_name(role) == UserRole.SUPER_ADMIN.value
+
+
+def _require_staff_room_agency(actor: Actor) -> None:
+    # Staff rooms are keyed by agency; a missing agency would match every agency-less user.
+    if not _is_super_admin(actor.role) and actor.agency_id is None:
+        raise HTTPException(status_code=403, detail="You are not part of an agency workspace.")
+
+
+def _can_see_custom_group(actor: Actor, group: dict[str, Any]) -> bool:
+    """Agency groups stay inside their agency; legacy groups (no agency) only for members and the creator."""
+    if _is_super_admin(actor.role):
+        return True
+    user_id_str = str(actor.user_id)
+    is_member = group.get("created_by") == user_id_str or user_id_str in group.get("member_ids", [])
+    group_agency = group.get("agency_id")
+    if not group_agency:
+        return is_member
+    return bool(actor.agency_id) and group_agency == str(actor.agency_id)
+
+
+def _require_custom_group_access(actor: Actor, channel: str) -> None:
+    """A custom group is readable/writable only by its members, its creator, or an admin of its agency."""
+    if _is_super_admin(actor.role):
+        return
+    group = next((g for g in _load_custom_groups() if g.get("id") == channel), None)
+    if group is None or not _can_see_custom_group(actor, group):
+        raise HTTPException(status_code=403, detail="You are not a member of this group.")
+    user_id_str = str(actor.user_id)
+    if group.get("created_by") == user_id_str or user_id_str in group.get("member_ids", []):
+        return
+    if _is_admin_role(actor.role) and group.get("agency_id"):
+        return
+    raise HTTPException(status_code=403, detail="You are not a member of this group.")
+
+
 async def _require_completed_onboarding(actor: Actor, db: AsyncSession) -> None:
     if _role_name(actor.role) != UserRole.CLIENT.value:
         return
@@ -155,6 +192,11 @@ async def _require_client_assignment(actor: Actor, client_id: uuid.UUID, db: Asy
     await _require_completed_onboarding(client_actor, db)
 
     if _is_admin_role(role):
+        # Admins only reach clients of their own agency; super admins any.
+        if role != UserRole.SUPER_ADMIN.value:
+            client_user = await db.get(User, client_id)
+            if client_user is None or not actor.agency_id or client_user.agency_id != actor.agency_id:
+                raise HTTPException(status_code=403, detail="This client belongs to another agency.")
         return
 
     from app.models.work import ClientAssignment
@@ -233,6 +275,14 @@ async def _require_direct_chat_access(actor: Actor, target: User, db: AsyncSessi
     target_role = _role_name(target.role)
     if target.id == actor.user_id:
         raise HTTPException(status_code=400, detail="You cannot start a chat with yourself.")
+
+    # Direct chats never cross agencies (super admins excepted); a missing agency never matches.
+    if not (
+        _is_super_admin(role)
+        or _is_super_admin(target_role)
+        or (actor.agency_id and target.agency_id == actor.agency_id)
+    ):
+        raise HTTPException(status_code=403, detail="This user belongs to another agency.")
 
     is_actor_admin = _is_admin_role(role)
     is_target_admin = _is_admin_role(target_role)
@@ -414,6 +464,7 @@ async def create_chat_group(
         "member_ids": member_ids_clean,
         "is_pod_channel": payload.is_pod_channel,
         "is_custom_group": True,
+        "agency_id": str(actor.agency_id) if actor.agency_id else None,
         "created_at": datetime.utcnow().isoformat(),
     }
 
@@ -423,6 +474,7 @@ async def create_chat_group(
     # Seed an intro welcome message in DirectMessage
     try:
         welcome_msg = DirectMessage(
+            agency_id=actor.agency_id,
             client_id=current_user_id,
             specialist_id=current_user_id,
             sender_id=current_user_id,
@@ -504,7 +556,12 @@ async def upload_chat_attachment(
     except Exception:
         local_dir = os.path.join(_LOCAL_STATIC_DIR, "chat")
         os.makedirs(local_dir, exist_ok=True)
-        file_path = os.path.join(local_dir, f"{uuid.uuid4().hex}_{filename}")
+        # Never keep the client's name or extension on disk: /static serves by extension, so a
+        # ".html" or ".svg" would run as a page on the API site. Use the allowlisted type only.
+        safe_ext = ALLOWED_MIMES.get(storage_mime, "bin")
+        if safe_ext in ("svg", "html", "htm", "js"):
+            safe_ext = "bin"
+        file_path = os.path.join(local_dir, f"{uuid.uuid4().hex}.{safe_ext}")
         with open(file_path, "wb") as f:
             f.write(contents)
         rel_path = os.path.relpath(file_path, _LOCAL_STATIC_DIR).replace("\\", "/")
@@ -706,6 +763,8 @@ async def get_chat_channels(
     accessible_custom: list[dict[str, Any]] = []
 
     for cg in custom_groups:
+        if not _can_see_custom_group(actor, cg):
+            continue
         cg_obj = {
             "id": cg["id"],
             "label": cg.get("label") or cg["id"].removeprefix("grp-"),
@@ -755,6 +814,15 @@ async def get_chat_contacts(
     is_bde = user_role in ("sales", "bde")
     is_team_member = not (is_admin or is_freelancer or is_tl or is_client or is_bde)
 
+    # Contacts never cross agencies: super admins see the whole platform, everyone else only
+    # their own agency, and a user with no agency sees nobody.
+    is_super = _is_super_admin(actor.role)
+    if not is_super and not actor.agency_id:
+        return []
+
+    def _in_agency(stmt: Any) -> Any:
+        return stmt if is_super else stmt.where(User.agency_id == actor.agency_id)
+
     from app.models.work import ClientAssignment
 
     # 1. Fetch Super Admin & Workspace Admins for non-admins
@@ -765,6 +833,11 @@ async def get_chat_contacts(
             .where(User.role.in_([UserRole.SUPER_ADMIN, "super_admin", UserRole.ADMIN, "admin"]))
             .order_by(User.created_at.asc())
         )
+        if not is_super:
+            # Own agency's admins, plus the platform super admin (support contact).
+            admin_stmt = admin_stmt.where(
+                or_(User.agency_id == actor.agency_id, User.role == UserRole.SUPER_ADMIN)
+            )
         admin_res = await db.execute(admin_stmt)
         all_admins = list(admin_res.scalars().all())
         has_super_admin = False
@@ -807,7 +880,7 @@ async def get_chat_contacts(
             .join(User, User.id == ClientAssignment.user_id)
             .where(ClientAssignment.client_id == current_user_id, ClientAssignment.role == "team_lead")
         )
-        tl_res = await db.execute(tl_stmt)
+        tl_res = await db.execute(_in_agency(tl_stmt))
         tl_assigned = tl_res.all()
         if tl_assigned:
             for ca, u in tl_assigned:
@@ -822,7 +895,7 @@ async def get_chat_contacts(
                     })
         else:
             any_tl_stmt = select(User).where(User.role.in_([UserRole.TEAM_LEAD, "team_lead"])).limit(1)
-            any_tl = (await db.execute(any_tl_stmt)).scalar_one_or_none()
+            any_tl = (await db.execute(_in_agency(any_tl_stmt))).scalar_one_or_none()
             if any_tl and any_tl.id != current_user_id:
                 contacts.append({
                     "id": str(any_tl.id),
@@ -853,7 +926,7 @@ async def get_chat_contacts(
         member_ids = pod_info.get("member_ids", set())
         if member_ids:
             mem_stmt = select(User).where(User.id.in_(member_ids)).order_by(User.full_name.asc())
-            for mu in (await db.execute(mem_stmt)).scalars().all():
+            for mu in (await db.execute(_in_agency(mem_stmt))).scalars().all():
                 role_label = "Pod Specialist"
                 r = str(mu.role).lower()
                 if "editor" in r:
@@ -875,7 +948,7 @@ async def get_chat_contacts(
             .where(ClientAssignment.user_id == current_user_id, ClientAssignment.role == "team_lead")
             .order_by(User.full_name.asc())
         )
-        for cu in (await db.execute(assigned_client_stmt)).scalars().all():
+        for cu in (await db.execute(_in_agency(assigned_client_stmt))).scalars().all():
             if cu.id != current_user_id:
                 contacts.append({
                     "id": str(cu.id),
@@ -906,7 +979,7 @@ async def get_chat_contacts(
         lead_id = pod_info.get("lead_id")
         if lead_id:
             lead_user = await db.get(User, lead_id)
-            if lead_user and lead_user.id != current_user_id:
+            if lead_user and lead_user.id != current_user_id and (is_super or lead_user.agency_id == actor.agency_id):
                 contacts.append({
                     "id": str(lead_user.id),
                     "name": lead_user.full_name or "Pod Team Lead",
@@ -920,7 +993,7 @@ async def get_chat_contacts(
     if is_admin:
         # A. All Team Leads
         tl_stmt = select(User).where(User.role.in_([UserRole.TEAM_LEAD, "team_lead", "lead"])).order_by(User.full_name.asc())
-        for tu in (await db.execute(tl_stmt)).scalars().all():
+        for tu in (await db.execute(_in_agency(tl_stmt))).scalars().all():
             if tu.id != current_user_id:
                 contacts.append({
                     "id": str(tu.id),
@@ -933,7 +1006,7 @@ async def get_chat_contacts(
         # B. All Team Members (Specialists across all pods)
         tm_roles = ["editor", "video_editor", "designer", "graphic_designer", "copywriter", "specialist"]
         tm_stmt = select(User).where(User.role.in_(tm_roles)).order_by(User.full_name.asc())
-        for mu in (await db.execute(tm_stmt)).scalars().all():
+        for mu in (await db.execute(_in_agency(tm_stmt))).scalars().all():
             if mu.id != current_user_id:
                 contacts.append({
                     "id": str(mu.id),
@@ -945,7 +1018,7 @@ async def get_chat_contacts(
 
         # C. All BDE Specialists
         bde_stmt = select(User).where(User.role.in_([UserRole.SALES, "sales", "bde"])).where(User.id != current_user_id).order_by(User.full_name.asc())
-        for bu in (await db.execute(bde_stmt)).scalars().all():
+        for bu in (await db.execute(_in_agency(bde_stmt))).scalars().all():
             contacts.append({
                 "id": str(bu.id),
                 "name": bu.full_name or bu.email.split("@")[0].capitalize(),
@@ -957,7 +1030,7 @@ async def get_chat_contacts(
 
         # D. All Clients
         client_stmt = select(User).where(User.role == "client").order_by(User.full_name.asc())
-        for cu in (await db.execute(client_stmt)).scalars().all():
+        for cu in (await db.execute(_in_agency(client_stmt))).scalars().all():
             if cu.id != current_user_id:
                 contacts.append({
                     "id": str(cu.id),
@@ -970,7 +1043,7 @@ async def get_chat_contacts(
 
         # E. All Freelancers
         free_stmt = select(User).where(User.role.in_(["freelancer", "freelance"])).order_by(User.full_name.asc())
-        for fu in (await db.execute(free_stmt)).scalars().all():
+        for fu in (await db.execute(_in_agency(free_stmt))).scalars().all():
             if fu.id != current_user_id:
                 contacts.append({
                     "id": str(fu.id),
@@ -1009,6 +1082,8 @@ async def get_chat_contacts(
                 Lead.metadata_extra["created_by"].as_string() == str(current_user_id),
             )
         ).order_by(Lead.created_at.desc())
+        if not is_super:
+            lead_stmt = lead_stmt.where(Lead.agency_id == actor.agency_id)
         bde_leads = list((await db.execute(lead_stmt)).scalars().all())
 
         lead_emails = {l.email.strip().lower() for l in bde_leads if l.email}
@@ -1032,7 +1107,7 @@ async def get_chat_contacts(
                 User.role == UserRole.CLIENT,
                 or_(*client_conditions),
             ).order_by(User.full_name.asc())
-            found_clients = list((await db.execute(client_stmt)).scalars().all())
+            found_clients = list((await db.execute(_in_agency(client_stmt))).scalars().all())
 
         found_emails = {c.email.strip().lower() for c in found_clients if c.email}
         added_user_ids = set()
@@ -1061,6 +1136,9 @@ async def get_chat_contacts(
             client_u = None
             if lead_email:
                 client_u = (await db.execute(select(User).where(func.lower(User.email) == lead_email))).scalar_one_or_none()
+                if client_u and not is_super and client_u.agency_id != actor.agency_id:
+                    # That email belongs to another agency's user: never surface or link it here.
+                    continue
 
             if not client_u:
                 user_email = lead_email or f"prospect_{lead.id}@creo.agency"
@@ -1112,7 +1190,7 @@ async def get_chat_contacts(
 
         # C. Other BDE Members
         bde_stmt = select(User).where(User.role.in_([UserRole.SALES, "sales", "bde"])).where(User.id != current_user_id).order_by(User.full_name.asc())
-        for bu in (await db.execute(bde_stmt)).scalars().all():
+        for bu in (await db.execute(_in_agency(bde_stmt))).scalars().all():
             contacts.append({
                 "id": str(bu.id),
                 "name": bu.full_name or bu.email.split("@")[0].capitalize(),
@@ -1197,6 +1275,10 @@ async def get_messages(
         if is_client_user and _is_staff_channel(channel):
             return []
 
+        if is_client_user and channel == "pod-team-chat":
+            # Internal pod-team thread: never readable by the client it is about.
+            raise HTTPException(status_code=403, detail="This channel is internal to your pod.")
+
         if not is_admin_user and channel:
             if is_tm_user:
                 if channel == "all-pod-leads" or channel == "bde-sales-hub":
@@ -1219,26 +1301,30 @@ async def get_messages(
 
         # Staff-only rooms carry no client, so they are keyed by thread_type alone.
         if _is_staff_channel(channel):
+            _require_staff_room_agency(actor)
+            if channel.startswith("grp-"):
+                _require_custom_group_access(actor, channel)
+            # Staff rooms (#general, pod rooms, groups) are per agency: never show another agency's.
             stmt = (
                 select(DirectMessage)
                 .where(DirectMessage.thread_type == channel)
                 .order_by(DirectMessage.created_at.asc())
                 .limit(200)
             )
+            if actor.role != UserRole.SUPER_ADMIN:
+                stmt = stmt.where(DirectMessage.agency_id == actor.agency_id)
         elif effective_client_id and channel and (
             channel.startswith("client-")
             or channel in ("pod-direct-chat", "pod-creative", "pod-creative-hub", "client-pod-thread", "pod-team-chat")
         ):
-            await _require_completed_onboarding(actor, db)
+            # Clients read only their own thread; staff only clients they are assigned to.
+            await _require_client_assignment(actor, effective_client_id, db)
             stmt = (
                 select(DirectMessage)
                 .where(
-                    or_(
-                        (DirectMessage.client_id == effective_client_id)
-                        & (DirectMessage.thread_type != "direct"),
-                        DirectMessage.thread_type == channel,
-                        DirectMessage.thread_type.like("client-%"),
-                    )
+                    DirectMessage.client_id == effective_client_id,
+                    # Messages are stored with thread_type = the channel they were posted to.
+                    DirectMessage.thread_type == channel,
                 )
                 .order_by(DirectMessage.created_at.asc())
                 .limit(200)
@@ -1263,7 +1349,8 @@ async def get_messages(
                 select(DirectMessage)
                 .where(
                     DirectMessage.client_id == effective_client_id,
-                    DirectMessage.thread_type != "direct",
+                    # Messages are stored with thread_type = the channel they were posted to.
+                    DirectMessage.thread_type == channel,
                 )
                 .order_by(DirectMessage.created_at.asc())
                 .limit(200)
@@ -1332,6 +1419,11 @@ async def send_message(
                 detail="Freelancers can only message Workspace Administrators directly.",
             )
 
+        if _is_staff_channel(payload.channel):
+            _require_staff_room_agency(actor)
+            if payload.channel.startswith("grp-"):
+                _require_custom_group_access(actor, payload.channel)
+
         # Enforce channel permissions:
         # Client can ONLY post in their dedicated client pod channel (#pod-creative-hub or client-*)
         if is_sender_client and (
@@ -1366,6 +1458,9 @@ async def send_message(
 
         is_client_user = is_sender_client
         client_id = current_user_id if is_client_user else (payload.client_id or current_user_id)
+        if not is_client_user and payload.client_id:
+            # Staff may post into a client's thread only when assigned to that client.
+            await _require_client_assignment(actor, payload.client_id, db)
         specialist_id = current_user_id
 
         # Determine notification and broadcast recipients
@@ -1380,9 +1475,11 @@ async def send_message(
             assigned_user_ids = set(assignments_res.scalars().all())
 
             if not assigned_user_ids:
+                # No pod yet: tell the client's own agency leads, not every agency's.
                 admins_stmt = select(User.id).where(
-                    User.role.in_([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.TEAM_LEAD]),
+                    User.role.in_([UserRole.ADMIN, UserRole.TEAM_LEAD]),
                     User.account_status == "active",
+                    User.agency_id == actor.agency_id,
                 )
                 assigned_user_ids = set((await db.execute(admins_stmt)).scalars().all())
 
@@ -1397,6 +1494,8 @@ async def send_message(
                     UserRole.DESIGNER,
                 ]),
                 User.account_status == "active",
+                # Staff rooms are per agency: only this agency's staff get the push.
+                User.agency_id == actor.agency_id,
             )
             recipients = set((await db.execute(staff_stmt)).scalars().all())
         else:
@@ -1404,6 +1503,7 @@ async def send_message(
                 recipients = {client_id}
 
         new_msg = DirectMessage(
+            agency_id=actor.agency_id,
             client_id=client_id,
             specialist_id=specialist_id,
             sender_id=current_user_id,
@@ -1417,7 +1517,8 @@ async def send_message(
         db.add(new_msg)
 
         # Broadcast live channel messages to all connected active connections as well as relevant recipients
-        websocket_recipients = set(ws_manager.active_connections.keys()) | {current_user_id}
+        # Push live only to the people this message is for, never to every connected socket.
+        websocket_recipients = {current_user_id}
         recipients.discard(current_user_id)
         websocket_recipients.update(recipients)
 
@@ -1499,6 +1600,7 @@ async def send_message(
             specialist_id = payload.recipient_id
 
         new_msg = DirectMessage(
+            agency_id=actor.agency_id,
             client_id=client_id,
             specialist_id=specialist_id,
             sender_id=current_user_id,

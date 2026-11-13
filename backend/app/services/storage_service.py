@@ -190,6 +190,19 @@ def _is_s3_configured() -> bool:
     return _check_s3_health()
 
 
+def _can_sign_s3() -> bool:
+    """Presigning is local math, so check settings only: never probe the bucket on a read path.
+
+    Respects an earlier failed probe (mark_s3_unhealthy) so reads keep falling back to Supabase.
+    """
+    return bool(
+        settings.STORAGE_S3_ENABLED
+        and settings.AWS_ACCESS_KEY_ID
+        and settings.AWS_SECRET_ACCESS_KEY
+        and _s3_healthy is not False
+    )
+
+
 def _is_supabase_configured() -> bool:
     return bool(settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY)
 
@@ -481,7 +494,7 @@ def signed_get(
         storage_key = storage_key[11:]
 
     # 1. Cloudflare R2 / S3
-    if (provider == "r2" or provider is None) and _is_s3_configured():
+    if (provider == "r2" or provider is None) and _can_sign_s3():
         try:
             s3 = _get_s3_client()
             params: dict[str, str] = {"Bucket": settings.STORAGE_BUCKET, "Key": storage_key}

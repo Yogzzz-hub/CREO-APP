@@ -342,12 +342,12 @@ class _BuilderState extends State<_Builder> {
         field('Service', l.title, (v) => l.title = v, required: true),
         field('Scope and deliverables', l.scope, (v) => l.scope = v, lines: 2),
         Row(children: [
-          Expanded(child: field('Quantity', '${l.qty}', (v) => l.qty = double.tryParse(v) ?? 0, number: true)),
+          Expanded(child: field('Quantity', plain(l.qty), (v) => l.qty = double.tryParse(v) ?? 0, number: true)),
           const SizedBox(width: 12),
           Expanded(child: field('Unit price (₹)', '${l.price}', (v) => l.price = double.tryParse(v)?.round() ?? 0, number: true)),
         ]),
         Row(children: [
-          Expanded(child: field('Discount %', '${l.discount}', (v) => l.discount = double.tryParse(v) ?? 0, number: true)),
+          Expanded(child: field('Discount %', plain(l.discount), (v) => l.discount = double.tryParse(v) ?? 0, number: true)),
           const SizedBox(width: 12),
           Expanded(
             child: Padding(
@@ -409,7 +409,7 @@ class _BuilderState extends State<_Builder> {
                   decoration: InputDecoration(labelText: 'Valid until', suffixIcon: Icon(Icons.event, color: C.mist)), child: Text(dm(valid), style: inter(16))),
             ),
           ),
-          field('Tax %', '$tax', (v) => tax = double.tryParse(v) ?? 0, number: true),
+          field('Tax %', plain(tax), (v) => tax = double.tryParse(v) ?? 0, number: true),
           field('Executive summary', summary, (v) => summary = v, lines: 3),
           field('Scope, deliverables and timeline', scope, (v) => scope = v, lines: 3),
           sec('Service and price lines'),
@@ -454,7 +454,7 @@ void previewProposal(BuildContext context, Proposal p) => openPage(context, '${p
         Rows([
           for (final l in p.lines.where((l) => l.billing == b))
             tile(l.title,
-                s: '${l.scope.isEmpty ? '' : '${l.scope}\n'}${l.qty} × ${inr(l.price)}${l.discount > 0 ? ' · ${l.discount}% off' : ''}',
+                s: '${l.scope.isEmpty ? '' : '${l.scope}\n'}${plain(l.qty)} × ${inr(l.price)}${l.discount > 0 ? ' · ${plain(l.discount)}% off' : ''}',
                 trail: Text(inr(l.gross - l.off), style: inter(15))),
         ]),
       ],

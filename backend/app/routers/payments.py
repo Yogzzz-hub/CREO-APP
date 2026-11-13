@@ -16,7 +16,7 @@ import uuid
 from decimal import Decimal
 from app.models.user import User
 from app.models.billing import PaymentEvent, Plan, PlanNegotiation, Subscription, UsageCounter
-from app.models.enums import SubscriptionStatus
+from app.models.enums import SubscriptionStatus, UserRole
 from app.schemas.billing import (
     ConfirmPaymentRequest,
     ConfirmPaymentResponse,
@@ -898,5 +898,8 @@ async def trigger_split_payment_reminder_check(
     """Automated task checking for approaching deadlines and overdue instalments."""
     from app.services import split_payment_service
 
+    # A platform-wide sweep that emails clients: platform super admins only (the scheduler also runs it).
+    if actor.role != UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=403, detail="Only a super admin can run the reminder sweep")
     return await split_payment_service.check_and_dispatch_reminders(db)
 

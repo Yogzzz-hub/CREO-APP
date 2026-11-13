@@ -16,8 +16,8 @@ class CreoTopHeader extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     this.title = 'creo.',
     this.roleSubtitle = 'Client',
-    this.userInitials = 'AN',
-    this.notificationCount = 3,
+    this.userInitials = '–',
+    this.notificationCount = 0,
     this.onMenuTap,
     this.onNotificationTap,
     this.onThemeToggle,
@@ -41,52 +41,59 @@ class CreoTopHeader extends StatelessWidget implements PreferredSizeWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Left: Menu Icon + Wordmark & Role Label
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                if (onMenuTap != null) ...[
-                  IconButton(
-                    icon: Icon(Icons.menu_rounded, size: 22, color: isDark ? CreoColors.ivory : CreoColors.lightEspresso),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    onPressed: onMenuTap,
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                RichText(
-                  text: TextSpan(
-                    text: 'creo',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.8,
-                      color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
+            // Left: Menu Icon + Wordmark & Role Label. Expanded so the role label shrinks on narrow phones
+            // instead of the header overflowing.
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (onMenuTap != null) ...[
+                    IconButton(
+                      icon: Icon(Icons.menu_rounded, size: 22, color: isDark ? CreoColors.ivory : CreoColors.lightEspresso),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      onPressed: onMenuTap,
                     ),
-                    children: const [
-                      TextSpan(
-                        text: '.',
-                        style: TextStyle(
-                          color: CreoColors.amber,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                        ),
+                    const SizedBox(width: 6),
+                  ],
+                  RichText(
+                    text: TextSpan(
+                      text: 'creo',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.8,
+                        color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
                       ),
-                    ],
+                      children: const [
+                        TextSpan(
+                          text: '.',
+                          style: TextStyle(
+                            color: CreoColors.amber,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  roleSubtitle,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? CreoColors.mist : CreoColors.lightMist,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      roleSubtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? CreoColors.mist : CreoColors.lightMist,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
 
             // Right: Actions Row matching the PDF
@@ -167,7 +174,7 @@ class CreoTopHeader extends StatelessWidget implements PreferredSizeWidget {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: CreoColors.amber.withOpacity(0.9),
+                      color: CreoColors.amber.withValues(alpha: 0.9),
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -191,4 +198,3 @@ class CreoTopHeader extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 }
-

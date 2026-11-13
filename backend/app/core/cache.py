@@ -92,6 +92,69 @@ async def is_user_suspended_in_cache(user_id: uuid.UUID | str, agency_id: uuid.U
     return False
 
 
+_in_memory_revoked: set[str] = set()
+
+
+async def revoke_token(jti: str, ttl_seconds: int) -> None:
+    """Deny one access token (by its jti) until it would have expired anyway. Used by logout."""
+    global _redis_last_failure
+    key = f"token:revoked:{jti}"
+    _in_memory_revoked.add(key)
+    import time
+    if time.time() - _redis_last_failure < 30.0:
+        return
+    try:
+        r = await get_redis()
+        await r.setex(key, max(int(ttl_seconds), 1), "1")
+    except Exception as e:
+        _redis_last_failure = time.time()
+        logger.debug("Redis not available for token revocation: %s", e)
+
+
+async def is_token_revoked(jti: str | None) -> bool:
+    """True when logout has revoked this access token."""
+    global _redis_last_failure
+    if not jti:
+        return False
+    key = f"token:revoked:{jti}"
+    if key in _in_memory_revoked:
+        return True
+    import time
+    if time.time() - _redis_last_failure < 30.0:
+        return False
+    try:
+        r = await get_redis()
+        if await r.get(key) == "1":
+            _in_memory_revoked.add(key)
+            return True
+    except Exception as e:
+        _redis_last_failure = time.time()
+        logger.debug("Redis not available for revocation check: %s", e)
+    return False
+
+
+async def incr_with_expiry(key: str, ttl_seconds: int) -> int | None:
+    """Atomically add one to a counter shared by every worker and return the new total.
+
+    The expiry is set on the first increment, so the window starts at the first hit.
+    Returns None when Redis is unavailable so callers can choose their own fallback."""
+    global _redis_last_failure
+    import time
+    if time.time() - _redis_last_failure < 30.0:
+        return None
+    try:
+        r = await get_redis()
+        count = int(await r.incr(key))
+        if count == 1:
+            await r.expire(key, max(int(ttl_seconds), 1))
+        return count
+    except Exception as e:
+        _redis_last_failure = time.time()
+        logger.debug("Redis not available for counter %s: %s", key, e)
+        return None
+
+
 def clear_in_memory_cache() -> None:
     """Helper for test isolation."""
     _in_memory_suspended.clear()
+    _in_memory_revoked.clear()

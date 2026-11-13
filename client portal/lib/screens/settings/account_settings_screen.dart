@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/creo_card.dart';
-import '../../widgets/creo_pill_button.dart';
 import '../../widgets/creo_segmented_tabs.dart';
 import '../brand/brand_dna_screen.dart';
 import '../billing/plan_and_billing_screen.dart';
@@ -25,11 +24,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   int _selectedTab = 0; // 0: Profile, 1: Integrations, 2: Security
 
   // Profile Form Controllers
-  final TextEditingController _fullNameCtrl = TextEditingController(text: 'Arvind N');
-  final TextEditingController _companyCtrl = TextEditingController(text: 'Zest Foods Direct');
-  final TextEditingController _emailCtrl = TextEditingController(text: 'arvind@zestfoods.com');
-  final TextEditingController _phoneCtrl = TextEditingController(text: '+91 98400 12345');
-  final TextEditingController _websiteCtrl = TextEditingController(text: 'https://zestfoods.in');
+  final TextEditingController _fullNameCtrl = TextEditingController();
+  final TextEditingController _companyCtrl = TextEditingController();
+  final TextEditingController _emailCtrl = TextEditingController();
+  final TextEditingController _phoneCtrl = TextEditingController();
+  final TextEditingController _websiteCtrl = TextEditingController();
   String _selectedIndustry = 'Direct-to-Consumer (D2C)';
 
   final List<String> _industries = [
@@ -42,37 +41,16 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   ];
 
   // Integrations State
-  bool _isIgConnected = true;
+  bool _isIgConnected = false;
   bool _autoPublishReels = true;
   bool _autoPublishPosts = true;
   bool _isVerifyingIg = false;
 
   // Security State
-  bool _twoFactorEnabled = true;
+  bool _twoFactorEnabled = false;
 
-  final List<Map<String, String>> _activeSessions = [
-    {
-      'device': 'MacBook Pro (Chrome 122)',
-      'location': 'Bengaluru, India · Current session',
-      'ip': '103.21.144.82',
-      'lastActive': 'Active now',
-      'isCurrent': 'true',
-    },
-    {
-      'device': 'iPhone 15 Pro (Safari Mobile)',
-      'location': 'Bengaluru, India',
-      'ip': '103.21.144.82',
-      'lastActive': '2 hours ago',
-      'isCurrent': 'false',
-    },
-    {
-      'device': 'Android Device (Creo Mobile App)',
-      'location': 'Bengaluru, India',
-      'ip': '103.21.144.82',
-      'lastActive': 'Just now',
-      'isCurrent': 'false',
-    },
-  ];
+  // Sessions load from the account API; none listed until it is connected.
+  final List<Map<String, String>> _activeSessions = [];
 
   @override
   void dispose() {
@@ -123,7 +101,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
         ),
         content: Text(
-          'Disconnecting @zestfoods will pause automated dispatch of scheduled Reels and Stories. Your pod will still produce content for manual download.',
+          'Disconnecting Instagram will pause automated dispatch of scheduled Reels and Stories. Your pod will still produce content for manual download.',
           style: TextStyle(
             color: isDark ? AppColors.mist : AppColors.lightMist,
             fontSize: 13,
@@ -286,7 +264,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _fullNameCtrl.text,
+                        _fullNameCtrl.text.isEmpty ? 'Your name' : _fullNameCtrl.text,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
@@ -295,7 +273,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Growth Plan · ${_companyCtrl.text}',
+                        _companyCtrl.text.isEmpty ? 'Client account' : _companyCtrl.text,
                         style: TextStyle(
                           fontSize: 12,
                           color: isDark ? AppColors.mist : AppColors.lightMist,
@@ -307,7 +285,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.emerald.withOpacity(0.15),
+                    color: AppColors.emerald.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text(
@@ -505,7 +483,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           const SizedBox(height: 12),
 
           DropdownButtonFormField<String>(
-            value: _selectedIndustry,
+            isExpanded: true,
+            initialValue: _selectedIndustry,
             items: _industries.map((ind) => DropdownMenuItem(value: ind, child: Text(ind))).toList(),
             onChanged: (val) {
               if (val != null) setState(() => _selectedIndustry = val);
@@ -606,7 +585,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            _isIgConnected ? '@zestfoods · Connected' : 'Not Connected',
+                            _isIgConnected ? 'Connected' : 'Not Connected',
                             style: TextStyle(
                               fontSize: 12,
                               color: _isIgConnected ? AppColors.emerald : AppColors.terracotta,
@@ -621,8 +600,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: _isIgConnected
-                          ? AppColors.emerald.withOpacity(0.15)
-                          : AppColors.terracotta.withOpacity(0.15),
+                          ? AppColors.emerald.withValues(alpha: 0.15)
+                          : AppColors.terracotta.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -651,7 +630,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 // Permissions checklist
                 _buildPermissionRow('instagram_content_publish', 'Publish Reels & Carousel posts directly', true),
                 const SizedBox(height: 6),
-                _buildPermissionRow('pages_show_list', 'Connected to Zest Foods Official Facebook Page', true),
+                _buildPermissionRow('pages_show_list', 'Connected to your Facebook Page', true),
                 const SizedBox(height: 6),
                 _buildPermissionRow('instagram_manage_insights', 'Track view & engagement analytics for reports', true),
                 const SizedBox(height: 16),
@@ -661,14 +640,14 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Auto-publish approved Reels', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   value: _autoPublishReels,
-                  activeColor: AppColors.amber,
+                  activeThumbColor: AppColors.amber,
                   onChanged: (val) => setState(() => _autoPublishReels = val),
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Auto-publish approved Carousel posts', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   value: _autoPublishPosts,
-                  activeColor: AppColors.amber,
+                  activeThumbColor: AppColors.amber,
                   onChanged: (val) => setState(() => _autoPublishPosts = val),
                 ),
                 const SizedBox(height: 16),
@@ -698,12 +677,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   isPrimary: true,
                   width: double.infinity,
                   onPressed: () {
-                    setState(() => _isIgConnected = true);
+                    // No real Meta sign-in is wired here yet, so never pretend to connect.
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Connected to @zestfoods Instagram Professional!'),
-                        backgroundColor: AppColors.emerald,
-                      ),
+                      const SnackBar(content: Text('Instagram connection is not available in the app yet')),
                     );
                   },
                 ),
@@ -775,7 +751,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   child: const Icon(Icons.lock_reset_rounded, size: 20, color: AppColors.amber),
                 ),
                 title: const Text('Account Password', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                subtitle: const Text('Last updated 45 days ago', style: TextStyle(fontSize: 11, color: AppColors.mist)),
+                subtitle: const Text('Change your login password', style: TextStyle(fontSize: 11, color: AppColors.mist)),
                 trailing: TextButton(
                   onPressed: _showChangePasswordModal,
                   child: const Text('Change', style: TextStyle(color: AppColors.amber, fontWeight: FontWeight.bold)),
@@ -788,7 +764,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 title: const Text('Two-Factor Authentication (2FA)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                 subtitle: const Text('Require WhatsApp / SMS verification code on login', style: TextStyle(fontSize: 11, color: AppColors.mist)),
                 value: _twoFactorEnabled,
-                activeColor: AppColors.amber,
+                activeThumbColor: AppColors.amber,
                 onChanged: (val) {
                   setState(() => _twoFactorEnabled = val);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -868,7 +844,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: AppColors.emerald.withOpacity(0.2),
+                                      color: AppColors.emerald.withValues(alpha: 0.2),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: const Text(

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/creo_card.dart';
 import '../../widgets/creo_pill_button.dart';
-import '../../widgets/creo_segmented_tabs.dart';
 import '../../widgets/creo_animations.dart';
 
 class AssetLibraryScreen extends StatefulWidget {
@@ -17,68 +16,8 @@ class _AssetLibraryScreenState extends State<AssetLibraryScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
-  final List<_LibraryAsset> _allAssets = [
-    _LibraryAsset(
-      id: 'lib-1',
-      title: 'Founder Story: Why traditional agencies fail',
-      type: 'REEL',
-      typeLabel: 'Reel · 9:16',
-      status: 'Approved',
-      isVideo: true,
-      aspectRatio: 9 / 16,
-      fileUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
-    ),
-    _LibraryAsset(
-      id: 'lib-2',
-      title: 'Ceramic Glaze Reveal (Macro 4K)',
-      type: 'REEL',
-      typeLabel: 'Reel · 9:16',
-      status: 'Published',
-      isVideo: true,
-      aspectRatio: 9 / 16,
-      fileUrl: 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&w=600&q=80',
-    ),
-    _LibraryAsset(
-      id: 'lib-3',
-      title: 'March 2026 Editorial Drop',
-      type: 'CAROUSEL',
-      typeLabel: 'Carousel · 4:5',
-      status: 'Scheduled',
-      isVideo: false,
-      aspectRatio: 4 / 5,
-      fileUrl: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=600&q=80',
-    ),
-    _LibraryAsset(
-      id: 'lib-4',
-      title: 'Studio Lighting Setup Behind The Scenes',
-      type: 'POST',
-      typeLabel: 'Static Post · 1:1',
-      status: 'Approved',
-      isVideo: false,
-      aspectRatio: 1 / 1,
-      fileUrl: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=600&q=80',
-    ),
-    _LibraryAsset(
-      id: 'lib-5',
-      title: 'Flash Sale 24h Countdown Reminder',
-      type: 'STORY',
-      typeLabel: 'Story · 9:16',
-      status: 'Published',
-      isVideo: false,
-      aspectRatio: 9 / 16,
-      fileUrl: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80',
-    ),
-    _LibraryAsset(
-      id: 'lib-6',
-      title: 'Texture & Clay Tactile Close-up',
-      type: 'REEL',
-      typeLabel: 'Reel · 9:16',
-      status: 'Approved',
-      isVideo: true,
-      aspectRatio: 9 / 16,
-      fileUrl: 'https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?auto=format&fit=crop&w=600&q=80',
-    ),
-  ];
+  // Approved assets arrive from the deliverables API; empty until connected.
+  final List<_LibraryAsset> _allAssets = [];
 
   @override
   void dispose() {
@@ -125,8 +64,10 @@ class _AssetLibraryScreenState extends State<AssetLibraryScreen> {
                 isPrimary: false,
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Preparing full-resolution .zip archive with captions & tags...'),
+                    SnackBar(
+                      content: Text(_allAssets.isEmpty
+                          ? 'Nothing to download yet'
+                          : 'Preparing full-resolution .zip archive with captions & tags...'),
                       backgroundColor: AppColors.amber,
                     ),
                   );
@@ -177,7 +118,7 @@ class _AssetLibraryScreenState extends State<AssetLibraryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '92% First-Round Approval Rate',
+                        _allAssets.isEmpty ? 'No approved assets yet' : '${_allAssets.length} approved assets',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -363,7 +304,7 @@ class _AssetLibraryScreenState extends State<AssetLibraryScreen> {
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.black.withOpacity(0.55), Colors.transparent, Colors.black.withOpacity(0.7)],
+                        colors: [Colors.black.withValues(alpha: 0.55), Colors.transparent, Colors.black.withValues(alpha: 0.7)],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                       ),

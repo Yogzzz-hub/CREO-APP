@@ -167,6 +167,8 @@ available AS (
                 AND u.account_status = 'active'
    CROSS JOIN deliv_window w
    WHERE sp.is_accepting_work = TRUE
+     -- Only staff of the task's own agency can receive its work.
+     AND u.agency_id IS NOT DISTINCT FROM CAST(:agency_id AS uuid)
      AND NOT EXISTS (
        SELECT 1 FROM leave_requests l
         WHERE l.user_id = sp.user_id
@@ -233,6 +235,7 @@ async def is_eligible(
         {
             "w_start": w_start,
             "w_end": w_end,
+            "agency_id": task.agency_id,
             "has_staff_id": True,
             "filter_staff_id": staff_id,
             "has_override": False,
@@ -336,6 +339,7 @@ async def backlog_and_alert(db: AsyncSession, task: Task, skill: str) -> None:
         select(User.id)
         .where(User.role.in_([UserRole.TEAM_LEAD, UserRole.ADMIN]))
         .where(User.account_status == "active")
+        .where(User.agency_id == task.agency_id)
         .limit(3)
     )
     lead_rows = (await db.execute(leads_query)).scalars().all()
@@ -441,6 +445,7 @@ async def assign_load_first(
         {
             "w_start": w_start,
             "w_end": w_end,
+            "agency_id": task.agency_id,
             "has_staff_id": False,
             "filter_staff_id": uuid.uuid4(),
             "has_override": required_skill_override is not None,

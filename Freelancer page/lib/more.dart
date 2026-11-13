@@ -118,6 +118,9 @@ class _ThreadState extends State<_Thread> {
 
 
 // ---------- Time off ----------
+/// 1 -> "1 day", 3 -> "3 days".
+String dayCount(int n) => '$n day${n == 1 ? '' : 's'}';
+
 class TimeOffTab extends StatelessWidget {
   const TimeOffTab({super.key});
 
@@ -134,7 +137,7 @@ class TimeOffTab extends StatelessWidget {
     if (end.isBefore(start)) return toast(context, 'The end date is before the start date');
     final b = Blackout(v['Reason']!, start, end, v['Notes for project leads']!);
     save(() => blackouts.insert(0, b));
-    toast(context, 'Sent to your team lead: ${b.days} day${b.days == 1 ? '' : 's'}');
+    toast(context, 'Sent to your team lead: ${dayCount(b.days)}');
   }
 
   @override
@@ -143,7 +146,7 @@ class TimeOffTab extends StatelessWidget {
     return page([
       title('Time off'),
       sub(away ? 'You are marked away today' : 'You are available for projects'),
-      Kv([('Blocked ahead', '${daysOf(upcomingBlackouts)} days'), ('In review', '${daysOf(pendingBlackouts)} days')]),
+      Kv([('Blocked ahead', dayCount(daysOf(upcomingBlackouts))), ('In review', dayCount(daysOf(pendingBlackouts)))]),
       mainButton('Block out dates', () => request(context)),
       sec('Your dates'),
       if (blackouts.isEmpty) empty('No dates blocked out'),
@@ -155,7 +158,7 @@ class TimeOffTab extends StatelessWidget {
             stateTag(b.status),
           ]),
           const SizedBox(height: 4),
-          Text('${b.reason} · ${b.days} day${b.days == 1 ? '' : 's'} · reviewer: team lead', style: inter(14, c: C.mist)),
+          Text('${b.reason} · ${dayCount(b.days)} · reviewer: team lead', style: inter(14, c: C.mist)),
           if (b.notes.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(b.notes, style: inter(15, c: C.mist2))),
           if (b.status == 'Pending')
             actions([

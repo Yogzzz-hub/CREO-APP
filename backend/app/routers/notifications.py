@@ -131,6 +131,27 @@ async def send_notification(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Send a notification to a specific user (e.g., review request or support feedback)."""
+    from fastapi import HTTPException
+
+    from app.models.enums import UserRole
+    from app.models.user import User
+    from app.models.work import ClientAssignment
+
+    # Links stay inside the app: a relative path, never another site.
+    if payload.link and (not payload.link.startswith("/") or payload.link.startswith("//")):
+        raise HTTPException(status_code=400, detail="Link must be a path inside the app")
+    target = await db.get(User, payload.user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if actor.role == UserRole.CLIENT:
+        # Clients may notify only the team assigned to them.
+        on_team = await db.scalar(select(ClientAssignment.id).where(
+            ClientAssignment.client_id == (actor.client_id or actor.user_id),
+            ClientAssignment.user_id == target.id).limit(1))
+        if on_team is None:
+            raise HTTPException(status_code=403, detail="You can only notify your own team")
+    elif actor.role != UserRole.SUPER_ADMIN and (not actor.agency_id or target.agency_id != actor.agency_id):
+        raise HTTPException(status_code=403, detail="You can only notify people in your agency")
     new_notif = Notification(
         user_id=payload.user_id,
         title=payload.title,

@@ -383,7 +383,14 @@ async def resend_onboarding_summary(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Manually dispatch or re-send client Brand DNA summary brief to assigned creative pod handlers."""
+    from fastapi import HTTPException
+
+    from app.routers.auth import _check_rate_limit
+
     client_id = actor.client_id or actor.user_id
+    # Each call emails the whole pod: at most 3 resends an hour per client.
+    if not await _check_rate_limit(f"resend_summary:{client_id}", max_requests=3, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="The brief was sent recently. Please try again later.")
     result = await onboarding_service.notify_team_of_new_client_summary(db, client_id)
     return {
         "status": "ok",

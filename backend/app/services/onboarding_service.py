@@ -722,6 +722,33 @@ def schedule_team_notification(client_id: uuid.UUID) -> None:
     task.add_done_callback(_background_tasks.discard)
 
 
+MAX_DAILY_CLIENT_AI_RUNS = 5
+
+
+async def _client_ai_budget_ok(client_id: uuid.UUID) -> bool:
+    """At most MAX_DAILY_CLIENT_AI_RUNS Brand DNA AI runs per client per day.
+
+    The Gemini key pool is shared by every agency, so one client changing answers in a loop must
+    not exhaust it. Counted in Redis (shared by all workers) with an in-process fallback."""
+    from datetime import UTC, datetime
+
+    from app.core.cache import get_redis
+
+    key = f"creo:brand_ai:{client_id}:{datetime.now(UTC).date().isoformat()}"
+    try:
+        r = await get_redis()
+        count = await r.incr(key)
+        if count == 1:
+            await r.expire(key, 86400)
+    except Exception:
+        count = _LOCAL_AI_RUNS.get(key, 0) + 1
+        _LOCAL_AI_RUNS[key] = count
+    return count <= MAX_DAILY_CLIENT_AI_RUNS
+
+
+_LOCAL_AI_RUNS: dict[str, int] = {}
+
+
 async def _enrich_and_notify_in_background(client_id: uuid.UUID) -> None:
     from app.db.session import AsyncSessionLocal
     from app.services.brand_dna import brand_dna_input_hash, questionnaire_answers, run_brand_dna_pipeline
@@ -744,7 +771,11 @@ async def _enrich_and_notify_in_background(client_id: uuid.UUID) -> None:
             )
             if already_llm:
                 return
-            if not already_llm:
+            # Only a real AI run counts against the client's daily budget; when it is used up, the
+            # existing Brand DNA stays and the team brief below is still sent.
+            if not await _client_ai_budget_ok(client_id):
+                logger.warning("brand_dna_ai_daily_limit_reached", client_id=str(client_id))
+            else:
                 try:
                     await run_brand_dna_pipeline(bg_db, client_id, notify_team=False)
                 except Exception as err:
@@ -873,6 +904,23 @@ async def notify_team_of_new_client_summary(
     prod_data = brand_dna_data.get("production") or {}
     feasible_formats = prod_data.get("feasible_formats") or brand_dna_data.get("recommended_formats") or []
     reel_style = prod_data.get("default_reel_style") or "talking_head"
+
+    # Everything below comes from the client's own questionnaire. Escape it once here, because the
+    # HTML template below interpolates these values directly into email sent to staff.
+    def _esc(value: Any) -> Any:
+        if isinstance(value, str):
+            return html.escape(value)
+        if isinstance(value, list):
+            return [_esc(v) for v in value]
+        if isinstance(value, dict):
+            return {k: _esc(v) for k, v in value.items()}
+        return value
+
+    voice_words, anti_voice, writing_rules, do_not_rules = (
+        _esc(voice_words), _esc(anti_voice), _esc(writing_rules), _esc(do_not_rules))
+    audience_data, pillars_data, palette, visual_styles = (
+        _esc(audience_data), _esc(pillars_data), _esc(palette), _esc(visual_styles))
+    feasible_formats, reel_style = _esc(feasible_formats), _esc(reel_style)
 
     frontend_base = (getattr(settings, "FRONTEND_URL", "https://creo.yogalakshmibaskar20.workers.dev") or "https://creo.yogalakshmibaskar20.workers.dev").rstrip("/")
     portal_link = f"{frontend_base}/admin/clients/{client_id}"
@@ -1020,7 +1068,7 @@ async def notify_team_of_new_client_summary(
 <html>
 <head>
   <meta charset="utf-8">
-  <title>{email_subject}</title>
+  <title>{html.escape(email_subject)}</title>
 </head>
 <body style="margin:0; padding:0; background-color:#F1F5F9; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#F1F5F9; padding:24px 12px;">

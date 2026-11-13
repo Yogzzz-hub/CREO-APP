@@ -105,6 +105,23 @@ class TaskPipelineResponse(BaseModel):
     ready_to_publish: list[dict[str, Any]]
 
 
+_ASSIGNABLE = {UserRole.EDITOR, UserRole.DESIGNER, UserRole.TEAM_LEAD, UserRole.FREELANCER, UserRole.ADMIN}
+
+
+async def _scoped_task(db: AsyncSession, actor: Actor, task_id: uuid.UUID) -> Task:
+    """Load a task only if the actor may work on it (own, pod, or own-agency admin)."""
+    from app.services.deliverable_workflow import get_task_for_actor
+    return await get_task_for_actor(db, actor, task_id)
+
+
+def _check_assignee(actor: Actor, task: Task, user: User) -> None:
+    """Work goes only to active production staff in the task's agency."""
+    if user.role not in _ASSIGNABLE or user.account_status != AccountStatus.ACTIVE:
+        raise Forbidden("Choose an active specialist", code="ASSIGNEE_FORBIDDEN")
+    if actor.role != UserRole.SUPER_ADMIN and task.agency_id and user.agency_id != task.agency_id:
+        raise Forbidden("Choose a specialist in the client's agency", code="ASSIGNEE_FORBIDDEN")
+
+
 # --- Routes ---
 
 
@@ -137,6 +154,13 @@ async def get_kanban_board(
     elif actor.role in (UserRole.FREELANCER, "freelancer"):
         where_conditions.append("t.assigned_to = :actor_id")
         params["actor_id"] = actor.user_id
+
+    if actor.role not in (UserRole.SUPER_ADMIN, "super_admin"):
+        # Every staff role sees only its own agency's clients.
+        if not actor.agency_id:
+            raise Forbidden("Your account has no agency")
+        where_conditions.append("t.client_id IN (SELECT id FROM users WHERE agency_id = :agency_id)")
+        params["agency_id"] = actor.agency_id
 
     where_sql = ("WHERE " + " AND ".join(where_conditions)) if where_conditions else ""
 
@@ -390,7 +414,7 @@ async def assign_task(
     actor: Actor = StaffActor,
 ) -> TaskResponse:
     """Assign task to a specific creative or trigger workload-aware auto-dispatch."""
-    task = await db.get(Task, task_id)
+    task = await _scoped_task(db, actor, task_id)
     if not task:
         raise NotFound(f"Task {task_id} not found", code="TASK_NOT_FOUND")
 
@@ -405,6 +429,7 @@ async def assign_task(
     if not user:
         raise NotFound(f"User {payload.assignee_id} not found", code="USER_NOT_FOUND")
 
+    _check_assignee(actor, task, user)
     prev_assignee = task.assigned_to
     task.assigned_to = payload.assignee_id
     if task.status == TaskStatus.BACKLOG:
@@ -433,7 +458,7 @@ async def reassign_task(
     actor: Actor = TeamLeadActor,
 ) -> TaskResponse:
     """Reassign task to a different creative with audit logging."""
-    task = await db.get(Task, task_id)
+    task = await _scoped_task(db, actor, task_id)
     if not task:
         raise NotFound(f"Task {task_id} not found", code="TASK_NOT_FOUND")
 
@@ -441,6 +466,7 @@ async def reassign_task(
     if not new_user:
         raise NotFound(f"User {payload.new_assignee_id} not found", code="USER_NOT_FOUND")
 
+    _check_assignee(actor, task, new_user)
     prev_assignee = task.assigned_to
     task.assigned_to = payload.new_assignee_id
 
@@ -467,7 +493,7 @@ async def move_task(
     actor: Actor = StaffActor,
 ) -> TaskResponse:
     """Move task across pipeline stages with role verification and audit log."""
-    task = await db.get(Task, task_id)
+    task = await _scoped_task(db, actor, task_id)
     if not task:
         raise NotFound(f"Task {task_id} not found", code="TASK_NOT_FOUND")
 
@@ -516,9 +542,13 @@ async def bulk_assign_tasks(
 ) -> dict[str, Any]:
     """Bulk assign or dispatch a list of tasks."""
     assigned_count = 0
+    assignee = await db.get(User, payload.assignee_id) if payload.assignee_id else None
+    if payload.assignee_id and assignee is None:
+        raise NotFound(f"User {payload.assignee_id} not found", code="USER_NOT_FOUND")
     for tid in payload.task_ids:
         if payload.assignee_id:
-            task = await db.get(Task, tid)
+            task = await _scoped_task(db, actor, tid)
+            _check_assignee(actor, task, assignee)
             if task:
                 task.assigned_to = payload.assignee_id
                 if task.status == TaskStatus.BACKLOG:
@@ -535,6 +565,7 @@ async def bulk_assign_tasks(
                 )
                 assigned_count += 1
         else:
+            await _scoped_task(db, actor, tid)
             res = await dispatch_task(db, tid, actor_id=actor.user_id, actor_role=actor.role)
             if res:
                 assigned_count += 1

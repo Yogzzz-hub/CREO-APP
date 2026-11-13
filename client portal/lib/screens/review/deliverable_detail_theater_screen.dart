@@ -45,7 +45,7 @@ class _DeliverableDetailTheaterScreenState extends State<DeliverableDetailTheate
                         width: 80,
                         height: 80,
                         decoration: BoxDecoration(
-                          color: CreoColors.amber.withOpacity(0.2),
+                          color: CreoColors.amber.withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
@@ -131,8 +131,8 @@ class _DeliverableDetailTheaterScreenState extends State<DeliverableDetailTheate
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    Colors.black.withOpacity(0.95),
-                    Colors.black.withOpacity(0.7),
+                    Colors.black.withValues(alpha: 0.95),
+                    Colors.black.withValues(alpha: 0.7),
                     Colors.transparent,
                   ],
                 ),

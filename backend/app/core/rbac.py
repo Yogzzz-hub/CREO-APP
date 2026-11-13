@@ -48,6 +48,9 @@ async def get_current_actor(
             agency_id = payload.get("agency_id")
             if await is_user_suspended_in_cache(actor_id, agency_id=agency_id):
                 raise Unauthorized("User account has been suspended", code="ACCOUNT_SUSPENDED")
+            from app.core.cache import is_token_revoked
+            if await is_token_revoked(payload.get("jti")):
+                raise Unauthorized("You have signed out. Please sign in again.", code="SESSION_REVOKED")
 
             # Enforce mandatory password reset isolation
             if payload.get("must_reset_password") is True:
@@ -92,7 +95,10 @@ async def get_current_actor(
 
     # Allow automated test fixtures ONLY when running in test environment / pytest
     import sys
-    is_testing = "pytest" in sys.modules or settings.ENVIRONMENT in ("test", "testing")
+    # Never in production, whatever else is loaded: these headers skip the token entirely.
+    is_testing = settings.ENVIRONMENT != "production" and (
+        "pytest" in sys.modules or settings.ENVIRONMENT in ("test", "testing")
+    )
     if is_testing and (x_user_id or x_user_role):
         if x_user_id:
             try:

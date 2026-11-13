@@ -8,12 +8,12 @@ class PausePlanModal extends StatefulWidget {
 
   const PausePlanModal({
     super.key,
-    this.planName = 'Brand Accelerator',
-    this.renewalDate = '17 MAR',
+    this.planName = '',
+    this.renewalDate = '',
     this.onSuccess,
   });
 
-  static Future<void> show(BuildContext context, {String planName = 'Brand Accelerator', String renewalDate = '17 MAR', VoidCallback? onSuccess}) {
+  static Future<void> show(BuildContext context, {String planName = '', String renewalDate = '', VoidCallback? onSuccess}) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,

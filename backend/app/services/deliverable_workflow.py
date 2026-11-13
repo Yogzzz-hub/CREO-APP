@@ -203,7 +203,8 @@ async def ensure_task_access(db: AsyncSession, actor: Actor, task: Task) -> None
     if role == UserRole.SUPER_ADMIN:
         return
     if role == UserRole.ADMIN:
-        if actor.agency_id and task.agency_id and actor.agency_id != task.agency_id:
+        # Fail closed: a missing agency on either side is never a match.
+        if not actor.agency_id or task.agency_id != actor.agency_id:
             raise Forbidden("This task belongs to another agency", code="TASK_FORBIDDEN")
         return
     if role in _CREATIVE_ROLES:
@@ -249,7 +250,11 @@ async def get_deliverable_for_review(
     task = await db.get(Task, deliverable.task_id) if deliverable.task_id else None
     if task is not None:
         await ensure_task_access(db, actor, task)
-    elif actor.role not in (UserRole.ADMIN, UserRole.SUPER_ADMIN) and not await on_client_pod(
+    elif actor.role == UserRole.ADMIN:
+        # A taskless deliverable still belongs to one agency; fail closed on a missing one.
+        if not actor.agency_id or deliverable.agency_id != actor.agency_id:
+            raise Forbidden("This deliverable belongs to another agency", code="DELIVERABLE_FORBIDDEN")
+    elif actor.role != UserRole.SUPER_ADMIN and not await on_client_pod(
         db, actor.user_id, deliverable.client_id
     ):
         raise Forbidden("This deliverable is outside your pod", code="DELIVERABLE_FORBIDDEN")

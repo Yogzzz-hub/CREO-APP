@@ -74,14 +74,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             ]:
                 res = await db.execute(select(User).where(User.email == s_email))
                 user_record = res.scalar_one_or_none()
-                if not user_record and settings.ENVIRONMENT == "development":
+                # Seed only on a developer machine that chose its own password: never with a
+                # built-in password, and never in production.
+                if (
+                    not user_record
+                    and settings.ENVIRONMENT == "development"
+                    and len(settings.DEV_ADMIN_PASSWORD) >= 12
+                ):
                     user_record = User(
                         email=s_email,
                         auth_id=s_auth,
                         full_name=s_name,
                         role=UserRole.SUPER_ADMIN,
                         account_status=AccountStatus.ACTIVE,
-                        hashed_password=hash_password("Admin123!"),
+                        hashed_password=hash_password(settings.DEV_ADMIN_PASSWORD),
                     )
                     db.add(user_record)
                     await db.commit()
@@ -332,7 +338,7 @@ async def security_and_rate_limit_middleware(
                     "error": {
                         "code": "INTERNAL_SERVER_ERROR",
                         "message": "An unexpected server error occurred.",
-                        "details": str(exc),
+                        "details": str(exc) if settings.ENVIRONMENT != "production" else {},
                     }
                 },
             )
@@ -394,7 +400,7 @@ async def global_unhandled_exception_handler(request: Request, exc: Exception) -
             "error": {
                 "code": "INTERNAL_SERVER_ERROR",
                 "message": "An unexpected server error occurred.",
-                "details": str(exc),
+                "details": str(exc) if settings.ENVIRONMENT != "production" else {},
             }
         },
     )
@@ -467,8 +473,10 @@ async def root(
         async with AsyncSessionLocal() as session:
             data = await _process_google_code(code, "https://creo-dsxr.onrender.com", session)
             token = data["access_token"]
-            frontend_base = "http://localhost:5173"
-            if state and (state.startswith("http://") or state.startswith("https://")):
+            # The token goes only to Creo's own front ends, never to a URL taken from the request.
+            allowed = {o.rstrip("/") for o in [settings.FRONTEND_URL, *settings.CORS_ORIGINS] if o}
+            frontend_base = settings.FRONTEND_URL.rstrip("/")
+            if state and state.rstrip("/") in allowed:
                 frontend_base = state.rstrip("/")
             return RedirectResponse(
                 url=f"{frontend_base}/auth/google/callback?token={urllib.parse.quote(token)}"
@@ -502,7 +510,7 @@ async def health_check(request: Request) -> Response:
             await conn.execute(text("SELECT 1"))
     except Exception as e:
         db_status = "error"
-        errors["db"] = str(e)
+        errors["db"] = str(e) if settings.ENVIRONMENT != "production" else "unavailable"
         logger.error("health_check_database_failed", error=str(e))
 
     # Check Redis connectivity
@@ -536,7 +544,7 @@ async def health_check(request: Request) -> Response:
         await r.aclose()
     except Exception as e:
         redis_status = "error"
-        errors["redis"] = str(e)
+        errors["redis"] = str(e) if settings.ENVIRONMENT != "production" else "unavailable"
         logger.error("health_check_redis_failed", error=str(e))
 
     overall_status = "ok" if (db_status == "ok" and redis_status == "ok") else "degraded"

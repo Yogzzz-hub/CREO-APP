@@ -20,47 +20,10 @@ class CreativePodDetailScreen extends StatefulWidget {
 }
 
 class _CreativePodDetailScreenState extends State<CreativePodDetailScreen> {
-  final List<_PodMember> members = [
-    const _PodMember(
-      name: 'Yogalakshmi Baskar',
-      role: 'Pod Lead & Creative Strategist',
-      initials: 'YB',
-      isPrimary: true,
-      desc: 'Sprint roadmaps, strategy briefs, and client communication. Mon-Fri, 10am-7pm IST.',
-      email: 'yoga@creo.agency',
-    ),
-    const _PodMember(
-      name: 'Karthik Raja',
-      role: 'Senior Video Editor',
-      initials: 'KR',
-      isPrimary: false,
-      desc: 'Cinematic Reels, 4K color grade, motion graphics, and sound design.',
-      email: 'karthik@creo.agency',
-    ),
-    const _PodMember(
-      name: 'Deepa Venkat',
-      role: 'Lead Visual Designer',
-      initials: 'DV',
-      isPrimary: false,
-      desc: 'Static posters, swipeable carousels, typography, and brand DNA consistency.',
-      email: 'deepa@creo.agency',
-    ),
-    const _PodMember(
-      name: 'Sneha Nair',
-      role: 'Head of Copy & Narrative',
-      initials: 'SN',
-      isPrimary: false,
-      desc: 'Hooks, psychological script frameworks, captions, and hashtag clusters.',
-      email: 'sneha@creo.agency',
-    ),
-  ];
+  // Filled from the client's pod assignment once the backend is connected.
+  final List<_PodMember> members = [];
 
-  final List<_CallSlot> slots = [
-    _CallSlot(id: 's1', dateLabel: 'Today', timeLabel: '3:00 PM - 3:15 PM', isBooked: false),
-    _CallSlot(id: 's2', dateLabel: 'Today', timeLabel: '5:30 PM - 5:45 PM', isBooked: false),
-    _CallSlot(id: 's3', dateLabel: 'Tomorrow', timeLabel: '11:00 AM - 11:15 AM', isBooked: false),
-    _CallSlot(id: 's4', dateLabel: 'Tomorrow', timeLabel: '4:00 PM - 4:15 PM', isBooked: false),
-  ];
+  final List<_CallSlot> slots = [];
 
   String? bookedSlotId;
 
@@ -71,7 +34,7 @@ class _CreativePodDetailScreenState extends State<CreativePodDetailScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Creative Pod Alpha', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        title: const Text('Your creative pod', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
         centerTitle: false,
         actions: [
           IconButton(
@@ -130,7 +93,7 @@ class _CreativePodDetailScreenState extends State<CreativePodDetailScreen> {
                       ),
                       const Spacer(),
                       const Text(
-                        'Pod Alpha',
+                        'Your pod',
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.amber),
                       ),
                     ],
@@ -243,7 +206,7 @@ class _CreativePodDetailScreenState extends State<CreativePodDetailScreen> {
                             setState(() => bookedSlotId = slot.id);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Booked 15-min call: ${slot.dateLabel} at ${slot.timeLabel} with Yogalakshmi!'),
+                                content: Text('Booked 15-min call: ${slot.dateLabel} at ${slot.timeLabel} with your pod lead!'),
                                 backgroundColor: AppColors.amber,
                               ),
                             );
@@ -260,7 +223,7 @@ class _CreativePodDetailScreenState extends State<CreativePodDetailScreen> {
 
             // Pod Roster Section
             Text(
-              'Pod Alpha Roster (${members.length})',
+              members.isEmpty ? 'Roster · not assigned yet' : 'Roster (${members.length})',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,

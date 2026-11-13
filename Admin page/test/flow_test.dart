@@ -177,4 +177,24 @@ void main() {
     expect(lightMode.value, isFalse);
     expect(ground(), const Color(0xFF0A0908));
   });
+
+  testWidgets('a long form still checks fields scrolled out of view', (t) async {
+    t.view.physicalSize = const Size(1170, 2532);
+    t.view.devicePixelRatio = 3;
+    addTearDown(t.view.reset);
+    Map<String, String>? result;
+    await t.pumpWidget(MaterialApp(
+        home: Builder(
+            builder: (c) => TextButton(
+                onPressed: () async => result = await formSheet(c, 'Long', [for (var i = 0; i < 20; i++) F('Field $i', required: true)], 'Done'),
+                child: const Text('Open')))));
+    await t.tap(find.text('Open'));
+    await t.pumpAndSettle();
+    await t.ensureVisible(find.text('Done'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Done'));
+    await t.pumpAndSettle();
+    expect(result, isNull);
+    expect(find.text('Field 0 is needed', skipOffstage: false), findsOneWidget);
+  });
 }

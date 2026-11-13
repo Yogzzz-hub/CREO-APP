@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import Conflict, NotFound
@@ -326,8 +326,12 @@ async def check_and_dispatch_reminders(db: AsyncSession) -> dict[str, int]:
         # Notify agency admin if not already alerted
         if inst.agency_notified_at is None:
             # Find agency admins
+            # Only the instalment's own agency admins hear about it (plus platform super admins).
             admin_stmt = select(User.id).where(
-                User.role.in_(["admin", "super_admin"]),
+                or_(
+                    and_(User.role == "admin", User.agency_id == inst.agency_id),
+                    User.role == "super_admin",
+                ),
                 User.account_status == "active",
             )
             admin_ids = (await db.execute(admin_stmt)).scalars().all()

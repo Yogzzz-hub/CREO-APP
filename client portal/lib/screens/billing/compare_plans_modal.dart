@@ -32,7 +32,7 @@ class ComparePlansModal extends StatelessWidget {
     final plans = [
       _PlanData(
         name: 'Starter Growth',
-        price: '₹29,999',
+        price: '₹25,000',
         pricePeriod: '/ month',
         reelsQuota: 6,
         postsQuota: 6,
@@ -49,7 +49,7 @@ class ComparePlansModal extends StatelessWidget {
       ),
       _PlanData(
         name: 'Brand Accelerator',
-        price: '₹49,999',
+        price: '₹50,000',
         pricePeriod: '/ month',
         reelsQuota: 12,
         postsQuota: 8,
@@ -62,12 +62,12 @@ class ComparePlansModal extends StatelessWidget {
           'Weekly strategy sprint with Pod Lead',
           'Priority direct pod chat access',
         ],
-        isCurrent: currentPlanName.toLowerCase().contains('accelerator') || currentPlanName.toLowerCase().contains('active'),
+        isCurrent: currentPlanName.toLowerCase().contains('accelerator'),
         isRecommended: true,
       ),
       _PlanData(
-        name: 'Enterprise Scale',
-        price: '₹89,999',
+        name: 'Scale',
+        price: '₹1,00,000',
         pricePeriod: '/ month',
         reelsQuota: 24,
         postsQuota: 16,
@@ -80,7 +80,7 @@ class ComparePlansModal extends StatelessWidget {
           'Monthly physical shoot in Chennai',
           'Executive Super Admin direct hotline',
         ],
-        isCurrent: currentPlanName.toLowerCase().contains('scale') || currentPlanName.toLowerCase().contains('enterprise'),
+        isCurrent: currentPlanName.toLowerCase().contains('scale'),
         isRecommended: false,
       ),
     ];

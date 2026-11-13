@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/creo_card.dart';
 import '../../widgets/creo_animations.dart';
-import 'hook_selection_modal.dart';
 import '../../widgets/creo_segmented_tabs.dart';
 
 class ContentCalendarScreen extends StatefulWidget {
@@ -19,7 +18,13 @@ class ContentCalendarScreen extends StatefulWidget {
 
 class _ContentCalendarScreenState extends State<ContentCalendarScreen> {
   int _viewIndex = 0; // 0: Month, 1: Agenda
-  int _selectedDay = 7;
+  // Today's month; no content until the calendar API is connected.
+  final DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  int _selectedDay = DateTime.now().day;
+
+  static const _monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
+      'September', 'October', 'November', 'December'];
+  static const _dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   @override
   Widget build(BuildContext context) {
@@ -53,11 +58,11 @@ class _ContentCalendarScreenState extends State<ContentCalendarScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Row(
               children: [
-                _buildFormatStat('Reels', 4),
+                _buildFormatStat('Reels', 0),
                 const SizedBox(width: 10),
-                _buildFormatStat('Posts', 8),
+                _buildFormatStat('Posts', 0),
                 const SizedBox(width: 10),
-                _buildFormatStat('Stories', 10),
+                _buildFormatStat('Stories', 0),
               ],
             ),
           ),
@@ -80,49 +85,6 @@ class _ContentCalendarScreenState extends State<ContentCalendarScreen> {
           ),
           const SizedBox(height: 20),
 
-          // ── 30-Day Campaign Plan Approval Banner ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: CreoCard(
-              backgroundColor: CreoColors.amber.withOpacity(0.12),
-              borderColor: CreoColors.amber.withOpacity(0.3),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.auto_awesome, color: CreoColors.amber, size: 18),
-                      SizedBox(width: 8),
-                      Text(
-                        '30-DAY NOVEMBER CAMPAIGN',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: CreoColors.amber,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Your dedicated pod has drafted 22 social slots across Reels, Carousels and Stories.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  CreoPillButton(
-                    label: 'Approve 30-Day Plan',
-                    onPressed: widget.onApprove30DayCampaign,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-
           // ── Calendar Month Picker ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -131,7 +93,7 @@ class _ContentCalendarScreenState extends State<ContentCalendarScreen> {
               children: [
                 const Icon(Icons.chevron_left, size: 20),
                 Text(
-                  'November 2026',
+                  '${_monthNames[_month.month - 1]} ${_month.year}',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -155,7 +117,7 @@ class _ContentCalendarScreenState extends State<ContentCalendarScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Text(
-              'Saturday $_selectedDay Nov · 1 item scheduled',
+              '${_dayNames[DateTime(_month.year, _month.month, _selectedDay).weekday - 1]} $_selectedDay ${_monthNames[_month.month - 1].substring(0, 3)} · Nothing scheduled',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -167,62 +129,10 @@ class _ContentCalendarScreenState extends State<ContentCalendarScreen> {
 
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: GestureDetector(
-              onTap: () {
-                HookSelectionModal.show(
-                  context,
-                  dateStr: 'Saturday $_selectedDay Mar 2026',
-                  format: 'Reel',
-                  title: 'Monsoon menu teaser',
-                );
-              },
-              child: CreoCard(
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: CreoColors.reelPurple.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          '9:16',
-                          style: TextStyle(
-                            color: CreoColors.reelPurple,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Monsoon menu teaser',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Reel · 6:30 PM dispatch · Hook: Direct curiosity',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark ? CreoColors.mist : CreoColors.lightMist,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, size: 18),
-                  ],
-                ),
+            child: CreoCard(
+              child: Text(
+                'Your pod\'s content plan will appear here',
+                style: TextStyle(fontSize: 13, color: isDark ? CreoColors.mist : CreoColors.lightMist),
               ),
             ),
           ),
@@ -296,6 +206,11 @@ class _ContentCalendarScreenState extends State<ContentCalendarScreen> {
     );
   }
 
+  int get _daysInMonth => DateTime(_month.year, _month.month + 1, 0).day;
+
+  /// Blank cells before day 1, for a week starting on Monday.
+  int get _leadingBlanks => _month.weekday - 1;
+
   Widget _buildDaysGrid(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -330,11 +245,11 @@ class _ContentCalendarScreenState extends State<ContentCalendarScreen> {
             crossAxisSpacing: 8,
             childAspectRatio: 1.0,
           ),
-          itemCount: 30,
+          itemCount: _leadingBlanks + _daysInMonth,
           itemBuilder: (context, index) {
-            final day = index + 1;
+            if (index < _leadingBlanks) return const SizedBox();
+            final day = index - _leadingBlanks + 1;
             final isSelected = day == _selectedDay;
-            final hasContent = [4, 7, 8, 9, 12, 15, 18, 22, 25, 28].contains(day);
 
             return CreoPressScale(
               onTap: () => setState(() => _selectedDay = day),
@@ -366,18 +281,6 @@ class _ContentCalendarScreenState extends State<ContentCalendarScreen> {
                             : (isDark ? CreoColors.ivory : CreoColors.lightEspresso),
                       ),
                     ),
-                    if (hasContent && !isSelected)
-                      Positioned(
-                        bottom: 4,
-                        child: Container(
-                          width: 4,
-                          height: 4,
-                          decoration: const BoxDecoration(
-                            color: CreoColors.amber,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),

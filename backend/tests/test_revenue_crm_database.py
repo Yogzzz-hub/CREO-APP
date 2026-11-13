@@ -109,6 +109,8 @@ async def workspace():
         await db.execute(
             text("GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO crm_runtime")
         )
+        # Tables with serial ids (audit_log) also need their sequences.
+        await db.execute(text("GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO crm_runtime"))
         await db.commit()
     request_engine = create_async_engine(URL, poolclass=NullPool)
 

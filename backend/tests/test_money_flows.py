@@ -40,7 +40,7 @@ from app.models.enums import (
 )
 from app.models.tenant import Agency
 from app.models.user import ClientProfile, User
-from app.services import email_service, payment_service, razorpay_orders
+from app.services import email_service, payment_service, razorpay_orders, razorpay_subscriptions
 
 pytestmark = pytest.mark.asyncio
 
@@ -97,12 +97,26 @@ class FakeRazorpay:
     async def fetch(self, key_id, key_secret, order_id):
         return self.orders.get(order_id)
 
+    # Recurring checkout (razorpay_subscriptions): keep tests offline, never call api.razorpay.com.
+    async def create_subscription(self, plan, client_id, *, key_id=None, key_secret=None):
+        sub_id = f"sub_{uuid.uuid4().hex[:14]}"
+        now = int(datetime.now(UTC).timestamp())
+        self.orders[sub_id] = {"id": sub_id, "status": "active", "paid_count": 1,
+                               "current_start": now, "current_end": now + 30 * 86400,
+                               "amount": plan.price_minor, "currency": plan.currency}
+        return sub_id
+
+    async def fetch_subscription(self, subscription_id):
+        return self.orders.get(subscription_id, {"id": subscription_id, "status": "created"})
+
 
 @pytest.fixture(autouse=True)
 def gateway(monkeypatch):
     fake = FakeRazorpay()
     monkeypatch.setattr(razorpay_orders, "create_razorpay_order", fake.create)
     monkeypatch.setattr(razorpay_orders, "fetch_razorpay_order", fake.fetch, raising=False)
+    monkeypatch.setattr(razorpay_subscriptions, "create", fake.create_subscription)
+    monkeypatch.setattr(razorpay_subscriptions, "fetch", fake.fetch_subscription)
     monkeypatch.setattr(settings, "RAZORPAY_KEY_SECRET", KEY_SECRET)
     monkeypatch.setattr(settings, "RAZORPAY_WEBHOOK_SECRET", WEBHOOK_SECRET)
     monkeypatch.setattr(settings, "ENVIRONMENT", "production")  # real signature checks

@@ -37,6 +37,9 @@ String dm(DateTime d) => '${d.day} ${monthName(d).substring(0, 3)}';
 /// "5 Nov, 11:00"
 String when(DateTime d) => '${dm(d)}, ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
+/// 1.0 -> "1", 2.5 -> "2.5".
+String plain(double v) => v == v.roundToDouble() ? '${v.toInt()}' : '$v';
+
 bool sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 bool thisMonth(DateTime d) => d.year == DateTime.now().year && d.month == DateTime.now().month;
 DateTime get today {

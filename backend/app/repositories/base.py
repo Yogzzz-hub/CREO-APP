@@ -16,7 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import Base
 from app.models.enums import DeliverableStatus, TaskStatus, UserRole
+from app.models.user import User
 from app.models.work import Deliverable, Task
+
+
+def _agency_clients(scope: TenantScope):
+    """Ids of clients in the caller's agency. Staff of one agency never reach another's records."""
+    return select(User.id).where(User.agency_id == scope.agency_id)
 
 T = TypeVar("T", bound=Base)
 
@@ -58,6 +64,10 @@ class DeliverableRepository(BaseRepository[Deliverable]):
         elif scope.client_id:
             # Scoped staff / admin filter
             stmt = stmt.where(Deliverable.client_id == scope.client_id)
+        if scope.role not in (UserRole.CLIENT, UserRole.SUPER_ADMIN):
+            if not scope.agency_id:
+                return None
+            stmt = stmt.where(Deliverable.client_id.in_(_agency_clients(scope)))
 
         result = await self.session.execute(stmt)
         return result.scalars().first()
@@ -80,6 +90,10 @@ class DeliverableRepository(BaseRepository[Deliverable]):
             filters.append(Deliverable.client_id == scope.client_id)
         elif scope.client_id:
             filters.append(Deliverable.client_id == scope.client_id)
+        if scope.role not in (UserRole.CLIENT, UserRole.SUPER_ADMIN):
+            if not scope.agency_id:
+                return []
+            filters.append(Deliverable.client_id.in_(_agency_clients(scope)))
 
         if status:
             filters.append(Deliverable.status == status)
@@ -113,6 +127,10 @@ class TaskRepository(BaseRepository[Task]):
             stmt = stmt.where(Task.assigned_to == scope.user_id)
         elif scope.client_id:
             stmt = stmt.where(Task.client_id == scope.client_id)
+        if scope.role not in (UserRole.CLIENT, UserRole.SUPER_ADMIN):
+            if not scope.agency_id:
+                return None
+            stmt = stmt.where(Task.client_id.in_(_agency_clients(scope)))
 
         result = await self.session.execute(stmt)
         return result.scalars().first()
@@ -137,6 +155,10 @@ class TaskRepository(BaseRepository[Task]):
             filters.append(Task.assigned_to == scope.user_id)
         elif scope.client_id:
             filters.append(Task.client_id == scope.client_id)
+        if scope.role not in (UserRole.CLIENT, UserRole.SUPER_ADMIN):
+            if not scope.agency_id:
+                return []
+            filters.append(Task.client_id.in_(_agency_clients(scope)))
 
         if status:
             filters.append(Task.status == status)

@@ -38,6 +38,8 @@ class Settings(BaseSettings):
 
     # Application settings with sensible defaults
     ENVIRONMENT: str = Field(default="development")
+    # Local-only password for the two seeded super admins. Unset: no admins are seeded.
+    DEV_ADMIN_PASSWORD: str = Field(default="")
     PORT: int = Field(default=8000)
     VERSION: str = Field(default="0.1.0")
     FRONTEND_URL: str = Field(default="https://creo.yogalakshmibaskar20.workers.dev")
@@ -228,7 +230,10 @@ class Settings(BaseSettings):
         if not self.JWT_SECRET and self.ENVIRONMENT not in ("development", "test"):
             raise ValueError("JWT_SECRET or SECRET_KEY must be configured outside development/test")
         if not self.JWT_SECRET:
-            self.JWT_SECRET = "super-secret-jwt-key-creo-development-32chars"
+            # Development without a configured secret: a random key per process, so no key in this
+            # repository can ever sign a valid token. Sessions end when the server restarts.
+            import secrets
+            self.JWT_SECRET = secrets.token_urlsafe(48)
 
         # Reconcile SMTP configuration
         if "SMTP_HOST" in self.model_fields_set and "SMTP_SERVER" not in self.model_fields_set:

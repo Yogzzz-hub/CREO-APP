@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
-import '../../widgets/creo_pill_button.dart';
 import '../../widgets/creo_animations.dart';
 
 class TicketDetailThreadScreen extends StatefulWidget {
@@ -54,24 +53,7 @@ class _TicketDetailThreadScreenState extends State<TicketDetailThreadScreen> {
   @override
   void initState() {
     super.initState();
-    _messages = [
-      _TicketMessage(
-        id: 'm1',
-        sender: 'Arvind N (Client)',
-        role: 'Client',
-        time: 'Yesterday at 4:15 PM',
-        text: 'Hi team, I noticed the reel deliverable scheduled for yesterday hasn\'t appeared in the Review tab. Can you check on the color grade progress?',
-        isMe: true,
-      ),
-      _TicketMessage(
-        id: 'm2',
-        sender: 'Yogalakshmi (Pod Lead)',
-        role: 'Pod Lead',
-        time: 'Yesterday at 4:48 PM',
-        text: 'Hi Arvind, apologies for the short wait! The editor finished the 4K render and it passed QA. It is now live in your Review tab for approval.',
-        isMe: false,
-      ),
-    ];
+    _messages = [];
   }
 
   @override
@@ -90,7 +72,7 @@ class _TicketDetailThreadScreenState extends State<TicketDetailThreadScreen> {
       _messages.add(
         _TicketMessage(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
-          sender: 'Arvind N (Client)',
+          sender: 'You',
           role: 'Client',
           time: 'Just now',
           text: text,
@@ -100,23 +82,6 @@ class _TicketDetailThreadScreenState extends State<TicketDetailThreadScreen> {
       _replyController.clear();
     });
 
-    // Simulate auto-acknowledgement
-    Future.delayed(const Duration(milliseconds: 1000), () {
-      if (mounted) {
-        setState(() {
-          _messages.add(
-            _TicketMessage(
-              id: DateTime.now().millisecondsSinceEpoch.toString(),
-              sender: 'Support Specialist',
-              role: 'Specialist',
-              time: 'Just now',
-              text: 'Thanks for the update! Our specialists are on it.',
-              isMe: false,
-            ),
-          );
-        });
-      }
-    });
   }
 
   @override
@@ -184,7 +149,7 @@ class _TicketDetailThreadScreenState extends State<TicketDetailThreadScreen> {
                         const Icon(Icons.people_outline_rounded, size: 14, color: AppColors.amber),
                         const SizedBox(width: 4),
                         Text(
-                          'Creative Pod Alpha',
+                          'Your creative pod',
                           style: TextStyle(fontSize: 11, color: isDark ? AppColors.mist : AppColors.lightMist),
                         ),
                       ],

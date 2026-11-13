@@ -32,7 +32,8 @@ async def require_super_admin(
 ) -> Actor:
     """Ensure the user is a platform super admin."""
     role_str = str(actor.role).lower() if actor.role else ""
-    if role_str not in ("super_admin", "platform_super_admin") and actor.email != "superadmin@creo.agency":
+    # Role only: an email claim is not an authority (other roles can be given any unused email).
+    if role_str not in ("super_admin", "platform_super_admin"):
         raise Forbidden("Super admin access required")
     return actor
 

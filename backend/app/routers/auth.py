@@ -12,7 +12,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 import httpx
 from pydantic import BaseModel, EmailStr, Field
@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.errors import Conflict, Forbidden, Unauthorized
 from app.core.logging import get_logger
-from app.core.cache import get_redis
+from app.core.cache import get_redis, incr_with_expiry
 from app.core.rbac import Actor, get_current_actor
 from app.core.security import (
     create_access_token,
@@ -47,6 +47,8 @@ users_router = APIRouter(prefix="/users", tags=["Users"])
 
 # Ephemeral in-memory OTP storage: key -> [code, expiry_timestamp, attempts]
 _otp_store: dict[str, list[Any]] = {}
+# In-memory verify attempt counters, used only when Redis is unavailable outside production.
+_otp_attempts: dict[str, int] = {}
 _pending_registration_store: dict[str, dict[str, str]] = {}
 
 # Ephemeral rate limiting store: key -> list of timestamp floats
@@ -55,6 +57,10 @@ _rate_limits: dict[str, list[float]] = {}
 
 def _otp_redis_key(key: str) -> str:
     return f"auth:otp:{key}"
+
+
+def _otp_attempts_redis_key(key: str) -> str:
+    return f"auth:otp_attempts:{key}"
 
 
 def _registration_redis_key(email: str) -> str:
@@ -106,9 +112,12 @@ async def _save_otp(key: str, value: list[Any]) -> None:
     """Persist OTP state across every API worker and instance."""
     ttl = max(1, int(float(value[1]) - time.time()))
     _otp_store[key] = value
+    _otp_attempts.pop(key, None)
     try:
         redis = await get_redis()
         await redis.setex(_otp_redis_key(key), ttl, json.dumps(value))
+        # A fresh code starts with a fresh attempt budget.
+        await redis.delete(_otp_attempts_redis_key(key))
     except Exception as exc:
         if settings.ENVIRONMENT == "production":
             logger.error("otp_store_unavailable", error=str(exc))
@@ -139,6 +148,22 @@ async def _delete_otp(key: str) -> None:
             logger.warning("otp_delete_failed", error=str(exc))
 
 
+async def _count_otp_attempt(key: str, expires_at: float) -> int:
+    """Atomically count one verify attempt across every worker and return the running total.
+
+    The count is taken before the code is compared, so concurrent guesses cannot share a slot."""
+    ttl = max(1, int(float(expires_at) - time.time()))
+    count = await incr_with_expiry(_otp_attempts_redis_key(key), ttl)
+    if count is not None:
+        return count
+    if settings.ENVIRONMENT == "production":
+        logger.error("otp_store_unavailable", error="attempt counter unavailable")
+        raise HTTPException(status_code=503, detail="Verification service is temporarily unavailable.")
+    # No await between read and write, so this is atomic within one process.
+    _otp_attempts[key] = _otp_attempts.get(key, 0) + 1
+    return _otp_attempts[key]
+
+
 async def _deliver_otp_or_raise(email: str, otp_code: str) -> None:
     """Deliver an OTP before making it valid in the shared store."""
     try:
@@ -154,8 +179,13 @@ async def _deliver_otp_or_raise(email: str, otp_code: str) -> None:
         )
 
 
-def _check_rate_limit(key: str, max_requests: int, window_seconds: int) -> bool:
-    """Sliding-window in-memory rate limiter per key (e.g. IP or email)."""
+async def _check_rate_limit(key: str, max_requests: int, window_seconds: int) -> bool:
+    """Rate limiter per key (e.g. IP or email), shared by every worker through Redis.
+
+    Falls back to a per-process sliding window only while Redis is unavailable."""
+    count = await incr_with_expiry(f"ratelimit:{key}", window_seconds)
+    if count is not None:
+        return count <= max_requests
     now = time.time()
     cutoff = now - window_seconds
     timestamps = [t for t in _rate_limits.get(key, []) if t > cutoff]
@@ -366,11 +396,6 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=128)
 
 
-class DirectResetPasswordRequest(BaseModel):
-    email: EmailStr
-    new_password: str = Field(..., min_length=8, max_length=128)
-
-
 class SetMandatoryPasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=128)
 
@@ -389,7 +414,7 @@ async def register_intent(
     email_clean = _normalize_email(payload.email)
 
     # Rate limiting: Max 5 registration attempts per 10 minutes per email
-    if not _check_rate_limit(f"reg_intent:{email_clean}", max_requests=5, window_seconds=600):
+    if not await _check_rate_limit(f"reg_intent:{email_clean}", max_requests=5, window_seconds=600):
         raise HTTPException(
             status_code=429,
             detail="Too many registration attempts. Please wait a few minutes before trying again.",
@@ -431,7 +456,7 @@ async def resend_registration(
 ) -> dict[str, Any]:
     """Resend registration OTP without requiring the password after refresh."""
     email_clean = _normalize_email(payload.email)
-    if not _check_rate_limit(f"reg_resend:{email_clean}", max_requests=5, window_seconds=600):
+    if not await _check_rate_limit(f"reg_resend:{email_clean}", max_requests=5, window_seconds=600):
         raise HTTPException(
             status_code=429,
             detail="Too many resend attempts. Please wait a few minutes.",
@@ -480,9 +505,7 @@ async def verify_registration(
         await _delete_otp(store_key)
         raise HTTPException(status_code=400, detail="Verification code has expired. Please request a new code.")
 
-    stored[2] += 1
-    await _save_otp(store_key, stored)
-    if stored[2] > 5:
+    if await _count_otp_attempt(store_key, stored[1]) > 5:
         await _delete_otp(store_key)
         raise HTTPException(status_code=429, detail="Maximum verification attempts exceeded. Please request a new code.")
 
@@ -547,7 +570,7 @@ async def forgot_password(
     """Generate and dispatch OTP to user email for password reset."""
     email_clean = _normalize_email(payload.email)
 
-    if not _check_rate_limit(f"forgot:{email_clean}", max_requests=5, window_seconds=600):
+    if not await _check_rate_limit(f"forgot:{email_clean}", max_requests=5, window_seconds=600):
         raise HTTPException(
             status_code=429,
             detail="Too many password reset requests. Please wait a few minutes before trying again.",
@@ -588,9 +611,7 @@ async def verify_reset_otp(
         await _delete_otp(store_key)
         raise HTTPException(status_code=400, detail="Reset code has expired. Please request a new code.")
 
-    stored[2] += 1
-    await _save_otp(store_key, stored)
-    if stored[2] > 5:
+    if await _count_otp_attempt(store_key, stored[1]) > 5:
         await _delete_otp(store_key)
         raise HTTPException(status_code=429, detail="Too many failed attempts. Please request a new reset code.")
 
@@ -611,38 +632,6 @@ async def verify_reset_otp(
         "reset_token": create_password_reset_token(user.id, user.token_version),
         "expires_in_seconds": 900,
         "sign_in_methods": _sign_in_methods(user),
-    }
-
-
-@router.post("/direct-reset-password", response_model=dict[str, Any])
-async def direct_reset_password(
-    payload: DirectResetPasswordRequest,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Directly set or reset password for an account without requiring email OTP verification."""
-    email_clean = _normalize_email(payload.email)
-    user = await _get_user_by_email(db, email_clean)
-    if not user:
-        raise HTTPException(status_code=404, detail="No account found with this email address.")
-    if user.account_status == AccountStatus.SUSPENDED:
-        raise HTTPException(status_code=403, detail="Your account has been suspended. Please contact support.")
-
-    valid, err = validate_password_strength(payload.new_password)
-    if not valid:
-        raise HTTPException(status_code=400, detail=err)
-
-    await _apply_new_password(user, payload.new_password)
-    if user.email_verified_at is None:
-        user.email_verified_at = datetime.now(timezone.utc)
-    if user.must_reset_password:
-        user.must_reset_password = False
-    await db.commit()
-    await db.refresh(user)
-
-    return {
-        "status": "success",
-        "message": "Password updated successfully. You can now use your new password.",
-        "email": email_clean,
     }
 
 
@@ -746,7 +735,7 @@ async def login(
     email_clean = _normalize_email(payload.email)
 
     # Rate limiting: Max 10 attempts per 15 minutes
-    if not _check_rate_limit(f"login:{email_clean}", max_requests=10, window_seconds=900):
+    if not await _check_rate_limit(f"login:{email_clean}", max_requests=10, window_seconds=900):
         raise HTTPException(
             status_code=429,
             detail="Too many sign-in attempts. For your security, this account is temporarily locked for 15 minutes.",
@@ -784,7 +773,7 @@ async def send_otp(payload: SendOtpRequest, db: AsyncSession = Depends(get_db)) 
     """Send 6-digit verification code to email via Brevo API with rate limiting."""
     email_clean = _normalize_email(payload.email)
 
-    if not _check_rate_limit(f"send_otp:{email_clean}", max_requests=5, window_seconds=600):
+    if not await _check_rate_limit(f"send_otp:{email_clean}", max_requests=5, window_seconds=600):
         raise HTTPException(
             status_code=429,
             detail="Too many verification requests. Please wait a few minutes before trying again.",
@@ -821,9 +810,7 @@ async def verify_otp(
         await _delete_otp(email_key)
         raise HTTPException(status_code=400, detail="Verification code has expired. Please request a new code.")
 
-    stored[2] += 1
-    await _save_otp(email_key, stored)
-    if stored[2] > 5:
+    if await _count_otp_attempt(email_key, stored[1]) > 5:
         await _delete_otp(email_key)
         raise HTTPException(status_code=429, detail="Maximum verification attempts exceeded. Please request a new code.")
 
@@ -946,6 +933,13 @@ async def update_me(
     if row is None:
         raise HTTPException(status_code=404, detail="User not found")
     user, profile = row
+
+    # This route returns a fresh access token, so (like GET /me) it must not renew a session
+    # that a password change or suspension has ended.
+    if actor.token_version is not None and actor.token_version != user.token_version:
+        raise Unauthorized("Your session has ended. Please sign in again.", code="SESSION_REVOKED")
+    if user.account_status == AccountStatus.SUSPENDED:
+        raise HTTPException(status_code=403, detail="Your account has been suspended. Please contact support.")
 
     new_name = payload.full_name or payload.name
     if new_name is not None and new_name.strip():
@@ -1317,7 +1311,26 @@ async def get_instagram_auth_url(
 
 
 @router.post("/logout", response_model=dict[str, Any])
-async def logout() -> dict[str, Any]:
-    """Logout and revoke session."""
+async def logout(request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """Sign out: the presented access token stops working now, and every refresh token for the
+    account stops working (token_version bump), so no device can quietly renew the session."""
+    import time
+
+    from app.core.cache import revoke_token
+    from app.core.security import decode_token
+
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
+    if token:
+        try:
+            payload = decode_token(token, expected_type="access")
+        except Exception:
+            return {"status": "logged_out"}  # already invalid or expired: nothing to revoke
+        if payload.get("jti"):
+            await revoke_token(payload["jti"], int(payload.get("exp", time.time())) - int(time.time()))
+        user = await db.get(User, uuid.UUID(payload["sub"]))
+        if user is not None:
+            user.token_version += 1
+            await db.commit()
     return {"status": "logged_out"}
 

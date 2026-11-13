@@ -15,63 +15,15 @@ class BrandDnaScreen extends StatefulWidget {
 class _BrandDnaScreenState extends State<BrandDnaScreen> {
   int _selectedSubTab = 0; // 0: Brand DNA, 1: Asset Vault
 
-  String _brandName = 'Zest Foods Direct';
-  String _igHandle = '@zestfoods';
-  String _whatYouSell = 'Artisanal organic cold-pressed wellness beverages and snacks';
+  // Empty until the client's Brand DNA is loaded from the backend (or filled in here).
+  String _brandName = '';
+  String _igHandle = '';
+  String _whatYouSell = '';
 
-  final List<Map<String, String>> _palette = [
-    {'name': 'Obsidian Void', 'hex': '#0F0E0C'},
-    {'name': 'Burnished Amber', 'hex': '#D2965A'},
-    {'name': 'Midnight Navy', 'hex': '#172338'},
-    {'name': 'Ivory Paper', 'hex': '#F5EEE3'},
-  ];
-
-  final List<String> _voiceTags = [
-    'Premium',
-    'Craft-first',
-    'Bold',
-    'Direct',
-    'Warm',
-    'Artisanal',
-  ];
-
-  final List<String> _taboos = [
-    'Never use generic AI stock footage with unnatural artificial motion.',
-    'Never place white typography over unshaded bright backgrounds.',
-    'Avoid robotic text-to-speech voiceovers; always use authentic human recording.',
-    'Never use low-resolution packaging mockups or blurry product labels.',
-  ];
-
-  final List<Map<String, String>> _vaultFiles = [
-    {
-      'id': 'file-1',
-      'name': 'Zest_Primary_Logo_Vector.svg',
-      'type': 'SVG Vector',
-      'size': '248 KB',
-      'date': 'Oct 14, 2026',
-    },
-    {
-      'id': 'file-2',
-      'name': 'Zest_Secondary_Brandmark_Dark.png',
-      'type': 'PNG 4K',
-      'size': '1.8 MB',
-      'date': 'Oct 14, 2026',
-    },
-    {
-      'id': 'file-3',
-      'name': 'Instrument_Sans_Typography_Suite.zip',
-      'type': 'Typography Font Suite',
-      'size': '4.2 MB',
-      'date': 'Oct 15, 2026',
-    },
-    {
-      'id': 'file-4',
-      'name': 'Zest_Q4_Product_Catalog_Guidelines.pdf',
-      'type': 'PDF Document',
-      'size': '12.4 MB',
-      'date': 'Oct 18, 2026',
-    },
-  ];
+  final List<Map<String, String>> _palette = [];
+  final List<String> _voiceTags = [];
+  final List<String> _taboos = [];
+  final List<Map<String, String>> _vaultFiles = [];
 
   void _openEditDnaModal(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -223,22 +175,15 @@ class _BrandDnaScreenState extends State<BrandDnaScreen> {
     );
   }
 
-  void _uploadFileMock() {
-    setState(() {
-      _vaultFiles.insert(0, {
-        'id': 'file-${DateTime.now().millisecondsSinceEpoch}',
-        'name': 'Brand_Asset_New_Package.zip',
-        'type': 'ZIP Archive',
-        'size': '5.6 MB',
-        'date': 'Just now',
-      });
-    });
+  Widget _emptyHint(String text, bool isDark) => Text(
+        text,
+        style: TextStyle(fontSize: 12, color: isDark ? AppColors.mist : AppColors.lightMist),
+      );
 
+  void _uploadFileMock() {
+    // No upload service is connected yet, so nothing is added to the vault.
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Brand asset uploaded and saved to vault!'),
-        backgroundColor: AppColors.emerald,
-      ),
+      const SnackBar(content: Text('Uploading brand files is not available yet')),
     );
   }
 
@@ -326,7 +271,7 @@ class _BrandDnaScreenState extends State<BrandDnaScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _brandName,
+                    _brandName.isEmpty ? 'Brand name not set' : _brandName,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -334,7 +279,7 @@ class _BrandDnaScreenState extends State<BrandDnaScreen> {
                     ),
                   ),
                   Text(
-                    _igHandle,
+                    _igHandle.isEmpty ? 'No Instagram handle' : _igHandle,
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -345,7 +290,7 @@ class _BrandDnaScreenState extends State<BrandDnaScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                _whatYouSell,
+                _whatYouSell.isEmpty ? 'Tap edit to describe what you sell' : _whatYouSell,
                 style: TextStyle(
                   fontSize: 12,
                   height: 1.4,
@@ -369,7 +314,9 @@ class _BrandDnaScreenState extends State<BrandDnaScreen> {
         const SizedBox(height: 10),
 
         Row(
-          children: _palette.map((color) {
+          children: [
+            if (_palette.isEmpty) _emptyHint('No colours yet', isDark),
+            ..._palette.map((color) {
             final hex = color['hex']!;
             final colorVal = Color(int.parse(hex.replaceFirst('#', '0xFF')));
             return Expanded(
@@ -410,7 +357,8 @@ class _BrandDnaScreenState extends State<BrandDnaScreen> {
                 ),
               ),
             );
-          }).toList(),
+          }),
+          ],
         ),
         const SizedBox(height: 24),
 
@@ -428,7 +376,9 @@ class _BrandDnaScreenState extends State<BrandDnaScreen> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: _voiceTags.map((tag) {
+          children: [
+            if (_voiceTags.isEmpty) _emptyHint('No voice words yet', isDark),
+            ..._voiceTags.map((tag) {
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
@@ -455,7 +405,8 @@ class _BrandDnaScreenState extends State<BrandDnaScreen> {
                 ],
               ),
             );
-          }).toList(),
+          }),
+          ],
         ),
         const SizedBox(height: 24),
 
@@ -499,7 +450,9 @@ class _BrandDnaScreenState extends State<BrandDnaScreen> {
         CreoCard(
           padding: const EdgeInsets.all(16),
           child: Column(
-            children: _taboos.map((rule) {
+            children: [
+            if (_taboos.isEmpty) _emptyHint('No rules yet', isDark),
+            ..._taboos.map((rule) {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
@@ -520,7 +473,8 @@ class _BrandDnaScreenState extends State<BrandDnaScreen> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
+          ],
           ),
         ),
       ],

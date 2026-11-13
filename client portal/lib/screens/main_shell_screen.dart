@@ -33,99 +33,20 @@ class _MainShellScreenState extends State<MainShellScreen> {
   int _currentTabIndex = 0;
   String _activeDrawerKey = 'dashboard';
 
-  // Mock initial dashboard state matching the Creo backend schema
+  // Starts empty: real data arrives from the backend (portal dashboard and deliverables APIs).
   final DashboardData _dashboardData = DashboardData(
-    pendingDeliverableCount: 3,
-    openTicketCount: 2,
-    brandSummary: 'Zest Foods D2C healthy beverage line',
-    instagramUsername: 'zestfoods',
-    instagramConnected: true,
-    planName: 'Brand Accelerator',
-    planTier: 'growth',
-    renewalDate: '2026-11-15T00:00:00Z',
-    daysRemaining: 9,
-    reelsQuota: QuotaItem(quota: 8, used: 4, remaining: 4),
-    postersQuota: QuotaItem(quota: 15, used: 9, remaining: 6),
-    storiesQuota: QuotaItem(quota: 20, used: 14, remaining: 6),
-    assignedTeam: [
-      TeamHandler(
-        id: '1',
-        name: 'Yogalakshmi Baskar',
-        email: 'yoga@creo.agency',
-        role: 'team_lead',
-        roleLabel: 'Pod Lead & Director',
-        podName: 'Pod Alpha',
-      ),
-      TeamHandler(
-        id: '2',
-        name: 'Arjun Rao',
-        email: 'arjun@creo.agency',
-        role: 'video_editor',
-        roleLabel: 'Lead Video Editor',
-        podName: 'Pod Alpha',
-      ),
-    ],
+    pendingDeliverableCount: 0,
+    openTicketCount: 0,
+    instagramConnected: false,
+    planName: null,
+    reelsQuota: QuotaItem(quota: 0, used: 0, remaining: 0),
+    postersQuota: QuotaItem(quota: 0, used: 0, remaining: 0),
+    storiesQuota: QuotaItem(quota: 0, used: 0, remaining: 0),
+    assignedTeam: [],
     recentActivity: [],
   );
 
-  // Mock deliverables matching Page 3 of the Admin PDF
-  late List<DeliverableItem> _deliverables = [
-    DeliverableItem(
-      id: 'deliv-101',
-      title: 'Monsoon menu teaser',
-      status: 'pending_approval',
-      statusLabel: 'Needs you',
-      deliverableType: 'reel',
-      formatLabel: 'Reel',
-      version: 1,
-      isVideo: true,
-      scheduledDate: '7 Nov',
-    ),
-    DeliverableItem(
-      id: 'deliv-102',
-      title: 'Serum launch carousel',
-      status: 'pending_approval',
-      statusLabel: 'Needs you',
-      deliverableType: 'carousel',
-      formatLabel: 'Post',
-      version: 1,
-      isVideo: false,
-      scheduledDate: '8 Nov',
-    ),
-    DeliverableItem(
-      id: 'deliv-103',
-      title: 'Trek checklist story',
-      status: 'pending_approval',
-      statusLabel: 'Needs you',
-      deliverableType: 'story',
-      formatLabel: 'Story',
-      version: 1,
-      isVideo: true,
-      scheduledDate: '9 Nov',
-    ),
-    DeliverableItem(
-      id: 'deliv-104',
-      title: 'Weekend offer poster',
-      status: 'revision_requested',
-      statusLabel: 'Changes asked',
-      deliverableType: 'poster',
-      formatLabel: 'Poster',
-      version: 2,
-      isVideo: false,
-      scheduledDate: '10 Nov',
-    ),
-    DeliverableItem(
-      id: 'deliv-105',
-      title: 'Founder story reel',
-      status: 'approved',
-      statusLabel: 'Approved',
-      deliverableType: 'reel',
-      formatLabel: 'Reel',
-      version: 2,
-      isVideo: true,
-      scheduledDate: '11 Nov',
-    ),
-  ];
+  List<DeliverableItem> _deliverables = [];
 
   void _handleApproveDeliverable(DeliverableItem item) {
     setState(() {
@@ -470,7 +391,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
       bottomNavigationBar: CreoBottomNavBar(
         currentIndex: _currentTabIndex,
         pendingReviewCount: pendingCount,
-        inboxBadgeCount: 2,
+        inboxBadgeCount: _dashboardData.openTicketCount,
         onTap: (index) => setState(() => _currentTabIndex = index),
       ),
     );

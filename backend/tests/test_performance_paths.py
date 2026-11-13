@@ -134,7 +134,7 @@ def test_password_verification_does_not_block_unrelated_requests(monkeypatch):
     monkeypatch.setattr(auth, "verify_password", verify)
     monkeypatch.setattr(auth, "_get_user_by_email", AsyncMock(return_value=user))
     monkeypatch.setattr(auth, "_issue_session", AsyncMock(return_value={"access_token": "test"}))
-    monkeypatch.setattr(auth, "_check_rate_limit", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(auth, "_check_rate_limit", AsyncMock(return_value=True))
 
     async def run():
         sign_in = asyncio.create_task(auth.login(auth.LoginRequest(email="test@example.com", password="password123"), db=object()))

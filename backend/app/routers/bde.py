@@ -343,8 +343,6 @@ async def update_lead(
         lead.lead_source = payload.lead_source.strip()
     if payload.priority is not None:
         lead.priority = payload.priority.lower()
-    if payload.status is not None:
-        lead.status = payload.status.lower()
     if payload.lost_reason is not None:
         lead.lost_reason = payload.lost_reason
     if payload.assigned_bde_id is not None:
@@ -356,6 +354,20 @@ async def update_lead(
         lead.assigned_bde_id = payload.assigned_bde_id
     if payload.next_follow_up_at is not None:
         lead.next_follow_up_at = payload.next_follow_up_at
+    if payload.status is not None and payload.status.lower() != old_status:
+        # Stage changes follow the same pipeline rules as POST /crm/leads/{id}/stage.
+        from app.models.revenue_crm import CRMTask
+        from app.services.revenue_crm import check_stage_change
+
+        pending = list(
+            (
+                await db.execute(
+                    select(CRMTask).where(CRMTask.lead_id == lead.id, CRMTask.status == "pending")
+                )
+            ).scalars()
+        )
+        check_stage_change(lead, payload.status.lower(), payload.lost_reason or "", None, pending)
+        lead.status = payload.status.lower()
 
     # If status changed, record activity
     if payload.status and payload.status.lower() != old_status:

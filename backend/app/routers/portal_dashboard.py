@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import or_, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -109,6 +109,15 @@ def _format_call_slot(starts_at: datetime) -> dict[str, str]:
         "time_label": f"{local.strftime('%I:%M %p').lstrip('0')} IST",
     }
 
+
+
+async def _staff_target(db: AsyncSession, actor: Actor, client_id: uuid.UUID | None) -> uuid.UUID:
+    """A staff caller may view another client only within the shared client scope (agency and pod)."""
+    target = client_id or actor.client_id or actor.user_id
+    if target != actor.user_id:
+        from app.core.client_scope import ensure_client_access
+        await ensure_client_access(db, actor, target, allow_client=False)
+    return target
 
 @router.get("/pod-calls/availability", response_model=dict[str, Any])
 async def get_pod_call_availability(
@@ -274,7 +283,7 @@ async def get_portal_pod(
     if actor.role == "client":
         target_client_id = actor.client_id or actor.user_id
     else:
-        target_client_id = client_id or actor.client_id or actor.user_id
+        target_client_id = await _staff_target(db, actor, client_id)
     assignments = await db.execute(
         select(ClientAssignment, User)
         .join(User, User.id == ClientAssignment.user_id)
@@ -354,7 +363,7 @@ async def get_portal_dashboard(
                 },
             )
     else:
-        target_client_id = client_id or actor.client_id or actor.user_id
+        target_client_id = await _staff_target(db, actor, client_id)
 
     return await _portal_dashboard_snapshot(
         target_client_id=target_client_id, current_stage=current_stage, actor=actor, db=db,
@@ -756,7 +765,7 @@ async def get_portal_brand_dna(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Read-only client view of synthesized Brand DNA."""
-    target_id = client_id if (actor.role != "client" and client_id) else (actor.client_id or actor.user_id)
+    target_id = (await _staff_target(db, actor, client_id)) if (actor.role != "client" and client_id) else (actor.client_id or actor.user_id)
     profile_stmt = select(ClientProfile).where(ClientProfile.user_id == target_id)
     profile = (await db.execute(profile_stmt)).scalar_one_or_none()
 
@@ -764,7 +773,9 @@ async def get_portal_brand_dna(
         from app.models.questionnaire import Questionnaire
         q_stmt = select(Questionnaire).where(Questionnaire.user_id == target_id)
         quest = (await db.execute(q_stmt)).scalar_one_or_none()
-        if quest and quest.core_completed_at:
+        from app.services.onboarding_service import _client_ai_budget_ok
+        # Opening the page must not be a way around the client's daily AI budget.
+        if quest and quest.core_completed_at and await _client_ai_budget_ok(target_id):
             from app.services import brand_dna
             dna = await brand_dna.run_brand_dna_pipeline(db, target_id)
             return {
@@ -856,7 +867,11 @@ async def upload_brand_asset(
             storage_service.put_object, storage_key, fileobj, mime_type, size
         )
     except Exception as exc:
-        relative = os.path.join("uploads", "brand_assets", str(client_id), f"{uuid.uuid4().hex[:8]}_{safe_name}")
+        # Served from /static by extension: keep only an allowlisted, non-scriptable extension.
+        safe_ext = storage_service.ALLOWED_MIMES.get(mime_type, "bin")
+        if safe_ext in ("svg", "html", "htm", "js"):
+            safe_ext = "bin"
+        relative = os.path.join("uploads", "brand_assets", str(client_id), f"{uuid.uuid4().hex[:8]}.{safe_ext}")
         destination = os.path.join(storage_service._LOCAL_STATIC_DIR, relative)
         os.makedirs(os.path.dirname(destination), exist_ok=True)
         with open(destination, "wb") as out:
@@ -922,12 +937,15 @@ async def delete_brand_asset(
 
 @router.get("/announcements", response_model=list[dict[str, Any]])
 async def list_announcements(
+    actor: Actor = Depends(get_current_actor),  # signed-in users only
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
     """Fetch active system announcements for the client portal."""
     stmt = (
         select(Announcement, User.full_name, User.email)
         .join(User, User.id == Announcement.author_id, isouter=True)
+        # Own agency's announcements plus platform-wide ones (no agency).
+        .where(or_(Announcement.agency_id.is_(None), Announcement.agency_id == actor.agency_id))
         .order_by(Announcement.created_at.desc())
         .limit(10)
     )

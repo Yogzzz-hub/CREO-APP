@@ -48,8 +48,12 @@ def do_run_migrations(connection: Connection) -> None:
         from alembic.script import ScriptDirectory
 
         script = ScriptDirectory.from_config(config)
-        res = connection.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
-        row = res.fetchone()
+        # A fresh database has no alembic_version yet. Querying it anyway fails and aborts the
+        # transaction, so every migration after it fails too: check the table exists first.
+        exists = connection.execute(text("SELECT to_regclass('alembic_version')")).scalar()
+        row = None
+        if exists:
+            row = connection.execute(text("SELECT version_num FROM alembic_version LIMIT 1")).fetchone()
         if row and row[0]:
             current_db_rev = row[0]
             try:
@@ -64,6 +68,10 @@ def do_run_migrations(connection: Connection) -> None:
                     connection.commit()
     except Exception:
         pass
+    # The checks above open an implicit transaction. End it, so Alembic opens its own: migrations
+    # that use autocommit_block() (e.g. 0026) fail when Alembic does not own the transaction.
+    if connection.in_transaction():
+        connection.rollback()
 
     context.configure(
         connection=connection,

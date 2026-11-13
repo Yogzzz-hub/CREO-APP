@@ -142,6 +142,7 @@ void main() {
     await fill(t, 'Notes for project leads', 'Drafts delivered first');
     await tapText(t, 'Send to team lead');
     expect(blackouts.single.days, 1);
+    expect(find.text('1 day'), findsOneWidget); // In review count, singular
     expect(blackouts.single.reason, 'Holiday / Vacation');
     expect(find.text('Pending'), findsOneWidget);
     await tapText(t, 'Withdraw');

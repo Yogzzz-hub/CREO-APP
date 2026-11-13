@@ -171,7 +171,7 @@ class CreoPortalDrawer extends StatelessWidget {
                     ),
                     child: const Center(
                       child: Text(
-                        'AN',
+                        '–',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w900,
@@ -186,7 +186,7 @@ class CreoPortalDrawer extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Arvind N',
+                          'Your account',
                           style: TextStyle(
                             fontSize: 14.5,
                             fontWeight: FontWeight.w800,
@@ -195,7 +195,7 @@ class CreoPortalDrawer extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Growth plan · Pod pen...',
+                          'Client portal',
                           style: TextStyle(
                             fontSize: 12,
                             color: isDark ? const Color(0xFF8E877F) : AppColors.lightMist,

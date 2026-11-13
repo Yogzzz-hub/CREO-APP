@@ -31,38 +31,8 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
 
   final List<String> _urgencies = ['Low', 'Medium', 'High', 'Urgent'];
 
-  final List<Map<String, dynamic>> _tickets = [
-    {
-      'rawId': 'tkt-001',
-      'id': '#TKT-7821',
-      'category': 'Content',
-      'title': 'Color correction & font tweak on Hook B in Deliverable #3',
-      'priority': 'Urgent',
-      'status': 'in_progress',
-      'timeAgo': '2h ago',
-      'specialist': 'Karthik R (Pod Lead)',
-    },
-    {
-      'rawId': 'tkt-002',
-      'id': '#TKT-6419',
-      'category': 'Billing',
-      'title': 'GST Tax invoice download for October retainer cycle',
-      'priority': 'Medium',
-      'status': 'resolved',
-      'timeAgo': '1d ago',
-      'specialist': 'Finance Desk',
-    },
-    {
-      'rawId': 'tkt-003',
-      'id': '#TKT-5510',
-      'category': 'Brand',
-      'title': 'Updated Fall 2026 brand palette assets uploaded to DNA',
-      'priority': 'Low',
-      'status': 'resolved',
-      'timeAgo': '4d ago',
-      'specialist': 'Ananya P (Designer)',
-    },
-  ];
+  // Tickets load from the support API; none until it is connected.
+  final List<Map<String, dynamic>> _tickets = [];
 
   final List<Map<String, String>> _faqs = [
     {
@@ -116,7 +86,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
         'priority': _selectedUrgency,
         'status': 'in_progress',
         'timeAgo': 'Just now',
-        'specialist': 'Karthik R (Pod Lead)',
+        'specialist': 'Your pod',
       });
       _subjectCtrl.clear();
       _descCtrl.clear();
@@ -370,7 +340,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: AppColors.emerald.withOpacity(0.3),
+                color: AppColors.emerald.withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
@@ -381,7 +351,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: AppColors.emerald.withOpacity(0.2),
+                    color: AppColors.emerald.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                   ),
                   child: const Center(
@@ -393,11 +363,11 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      const Row(
                         children: [
-                          const CreoPulseDot(color: AppColors.emerald, size: 7),
-                          const SizedBox(width: 8),
-                          const Text(
+                          CreoPulseDot(color: AppColors.emerald, size: 7),
+                          SizedBox(width: 8),
+                          Text(
                             'Guaranteed 4-Hour SLA',
                             style: TextStyle(
                               fontSize: 13,
@@ -522,10 +492,10 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: isResolved
-                                ? AppColors.emerald.withOpacity(0.15)
+                                ? AppColors.emerald.withValues(alpha: 0.15)
                                 : isUrgent
-                                    ? AppColors.terracotta.withOpacity(0.15)
-                                    : AppColors.amber.withOpacity(0.15),
+                                    ? AppColors.terracotta.withValues(alpha: 0.15)
+                                    : AppColors.amber.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
@@ -668,7 +638,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
         color: isDark ? AppColors.bentoCard : AppColors.lightCard,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.amber.withOpacity(0.3),
+          color: AppColors.amber.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -680,7 +650,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.amber.withOpacity(0.15),
+                  color: AppColors.amber.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.phone_in_talk_rounded, color: AppColors.amber, size: 18),

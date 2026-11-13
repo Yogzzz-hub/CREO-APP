@@ -195,7 +195,7 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      'Zest Foods · ${item.formatLabel} · v${item.version} · ${item.scheduledDate ?? "7 Nov"}',
+                      '${item.formatLabel} · v${item.version} · ${item.scheduledDate ?? "Not scheduled"}',
                       style: TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 12,
@@ -477,7 +477,7 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
                   hintText: 'What should your pod change?...',
                   hintStyle: TextStyle(
                     fontSize: 13,
-                    color: isDark ? CreoColors.mist.withOpacity(0.5) : CreoColors.lightMist.withOpacity(0.5),
+                    color: isDark ? CreoColors.mist.withValues(alpha: 0.5) : CreoColors.lightMist.withValues(alpha: 0.5),
                   ),
                   filled: true,
                   fillColor: isDark ? CreoColors.surface : CreoColors.lightBase,
@@ -531,10 +531,7 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
 
   void _showPublishingPanelDialog(BuildContext context, DeliverableItem item) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final captionCtrl = TextEditingController(
-      text:
-          'Introducing our new cold-pressed ginger citrus elixir. Crafted for all-day focus. 🍋✨\n\n#zestfoods #coldpressed #organic #cleanenergy #wellness',
-    );
+    final captionCtrl = TextEditingController();
 
     showModalBottomSheet(
       context: context,
@@ -582,7 +579,7 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
                           ),
                         ),
                         const Text(
-                          '@zestfoods · Official Business Feed',
+                          'Your connected Instagram account',
                           style: TextStyle(fontSize: 11, color: AppColors.mist),
                         ),
                       ],
@@ -621,7 +618,7 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.emerald.withOpacity(0.12),
+                color: AppColors.emerald.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Row(
@@ -630,7 +627,7 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Scheduled for Friday, 6:00 PM IST (Peak engagement slot)',
+                      'Your pod sets the publishing time after approval',
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.emerald),
                     ),
                   ),
@@ -646,7 +643,7 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
                     onPressed: () {
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Auto-publishing scheduled for Friday 6 PM IST!')),
+                        const SnackBar(content: Text('Scheduling from the app is not available yet')),
                       );
                     },
                     style: OutlinedButton.styleFrom(
@@ -662,10 +659,8 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
                     onPressed: () {
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('🚀 Published to @zestfoods feed immediately!'),
-                          backgroundColor: AppColors.emerald,
-                        ),
+                        // Publishing is not wired to the backend yet: never claim it happened.
+                        const SnackBar(content: Text('Publishing from the app is not available yet')),
                       );
                     },
                     style: ElevatedButton.styleFrom(
