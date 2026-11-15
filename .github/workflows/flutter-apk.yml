@@ -63,7 +63,9 @@ jobs:
           cp build/app/outputs/flutter-apk/app-debug.apk dist/creo-test.apk
           (cd dist && sha256sum creo-test.apk > SHA256SUMS.txt)
           printf 'Commit: %s\nFlutter: %s\nVariant: debug (test only)\n' "$GITHUB_SHA" "$FLUTTER_VERSION" > dist/BUILD.txt
-          keytool -list -v -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android > dist/SIGNING-CERTIFICATE.txt
+          apksigner=$(find "$ANDROID_HOME/build-tools" -mindepth 2 -maxdepth 2 -name apksigner -type f | sort -V | tail -n 1)
+          test -n "$apksigner"
+          "$apksigner" verify --print-certs dist/creo-test.apk > dist/SIGNING-CERTIFICATE.txt
       - name: Upload downloadable APK
         id: artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
