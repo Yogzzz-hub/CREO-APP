@@ -1,0 +1,103 @@
+name: Android test APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/app_flutter/**'
+      - '.github/workflows/flutter-apk.yml'
+  pull_request:
+    paths:
+      - 'frontend/app_flutter/**'
+      - '.github/workflows/flutter-apk.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.50.0'
+
+jobs:
+  apk:
+    name: Build downloadable test APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: frontend/app_flutter
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Install required Android NDK
+        run: sdkmanager 'ndk;28.2.13676358'
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Build debug APK
+        run: flutter build apk --debug --no-pub --build-number="${{ github.run_number }}"
+      - name: Package APK and checksum
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-debug.apk dist/creo-test.apk
+          (cd dist && sha256sum creo-test.apk > SHA256SUMS.txt)
+          printf 'Commit: %s\nFlutter: %s\nVariant: debug (test only)\n' "$GITHUB_SHA" "$FLUTTER_VERSION" > dist/BUILD.txt
+          keytool -list -v -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android > dist/SIGNING-CERTIFICATE.txt
+      - name: Upload downloadable APK
+        id: artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: creo-android-test-${{ github.run_number }}
+          path: frontend/app_flutter/dist/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Download instructions
+        env:
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+        run: |
+          echo "### Android test APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "Download: $ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Extract the ZIP and install creo-test.apk. This is a debug-signed test build, not a production release.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Google sign-in requires this certificate SHA-1 registered for com.example.app_flutter. See SIGNING-CERTIFICATE.txt; CI debug certificates can change between runs.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'APK creation does not certify passing analysis/tests. Inspect the separate Quality checks job.' >> "$GITHUB_STEP_SUMMARY"
+
+  quality:
+    name: Quality checks (independent of test APK)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend/app_flutter
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Resolve locked dependencies
+        id: dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Static analysis
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        run: flutter analyze --no-pub
+      - name: Flutter tests
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        run: flutter test --no-pub
