@@ -2,9 +2,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/auth_session.dart';
 import '../../core/app_appearance.dart';
+import '../workstation/member_workspace_shell.dart';
+import '../freelancer/freelancer_workspace_page.dart';
+import '../team_lead/team_lead_page.dart';
+import 'mandatory_password_page.dart';
+import '../onboarding/client_onboarding_page.dart';
+import '../admin/creo_admin/admin_shell.dart';
+import '../bde/creo_bde/bde_shell.dart';
+import '../portal/client_portal_screen.dart';
 
 /// Authenticated content cannot mount before server validation. The signed-in
-/// view is the existing unavailable-destination boundary, not a fake dashboard.
+/// Editors/designers enter the workstation only after server validation.
 class SessionLifecycleGate extends StatefulWidget {
   const SessionLifecycleGate({
     super.key,
@@ -60,6 +68,74 @@ class _SessionLifecycleGateState extends State<SessionLifecycleGate>
         'CACHE_CLEAR_FAILED',
       ].contains(session.issue?.code);
       final restricted = session.current?.user.mustResetPassword == true;
+      if (ready && restricted)
+        return Navigator(
+          key: ValueKey((session, session.current!.user.id, 'password-reset')),
+          onGenerateRoute: (_) => MaterialPageRoute<void>(
+            builder: (_) => MandatoryPasswordPage(session: session),
+          ),
+        );
+      if (ready && !restricted && session.current?.user != null) {
+        final current = session.current!.user;
+        final role = current.role.toLowerCase();
+
+        return Navigator(
+          key: ValueKey((session, current.id, role)),
+          onGenerateRoute: (_) => MaterialPageRoute<void>(
+            builder: (context) {
+              if (role == 'admin' || role == 'super_admin') {
+                return AdminShellScreen(
+                  session: session,
+                  onSignOut: () => session.logout(notifyServer: true),
+                );
+              } else if (role == 'bde' ||
+                  role == 'sales' ||
+                  role == 'bde_head') {
+                return BdeShellScreen(
+                  session: session,
+                  onSignOut: () => session.logout(notifyServer: true),
+                );
+              } else if (role == 'client' || role == 'client_owner') {
+                if (current.onboardingStage < 8) {
+                  return ClientOnboardingPage(
+                    session: session,
+                    onCompleted: () => unawaited(session.restore()),
+                  );
+                }
+                return ClientPortalScreen(
+                  session: session,
+                  onSignOut: () => session.logout(notifyServer: true),
+                );
+              } else if (role == 'freelancer') {
+                return FreelancerWorkspacePage(session: session);
+              } else if (role == 'team_lead') {
+                return TeamLeadPage(session: session);
+              } else if (role == 'editor' || role == 'designer') {
+                return MemberWorkspaceShell(session: session);
+              }
+              return Scaffold(
+                appBar: AppBar(title: const Text('Workspace unavailable')),
+                body: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      Text(
+                        DestinationIntent.forUser(current).blocker ??
+                            'This role has no verified mobile workspace.',
+                      ),
+                      const SizedBox(height: 24),
+                      OutlinedButton(
+                        onPressed: () => session.logout(notifyServer: true),
+                        child: const Text('Sign out'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      }
       return Scaffold(
         body: SafeArea(
           child: Center(

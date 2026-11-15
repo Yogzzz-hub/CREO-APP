@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import '../../core/android_google_sign_in_flow.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 // AuthScreen – mobile sign-in, sign-up and email verification (OTP).
 //
@@ -8,11 +10,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_theme.dart';
 import '../../core/app_appearance.dart';
 import '../../core/auth_repository.dart';
 import '../../core/auth_session.dart';
+import '../../core/google_sign_in_flow.dart';
 import '../splash/splash_screen.dart';
 
 String? validateLoginEmail(String value) {
@@ -76,6 +78,8 @@ class AuthScreen extends StatefulWidget {
   final String defaultView; // 'signin' | 'signup'
   final AuthRepository? repository;
   final AuthSession? session;
+  final Future<bool> Function(Uri uri)? googleLauncher;
+  final GoogleOAuthPlatform? googlePlatform;
   final ValueChanged<DestinationIntent>? onDestination;
   final String? sessionMessage;
   const AuthScreen({
@@ -83,6 +87,8 @@ class AuthScreen extends StatefulWidget {
     this.defaultView = 'signin',
     this.repository,
     this.session,
+    this.googleLauncher,
+    this.googlePlatform,
     this.onDestination,
     this.sessionMessage,
   });
@@ -94,6 +100,9 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   late final AuthRepository _repo;
   late final AuthSession _session;
+  late final GoogleAuthFlow _google;
+  late final bool _nativeAndroidGoogle;
+  bool _googlePending = false;
   final _signInKey = GlobalKey<FormState>();
   final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
@@ -127,12 +136,26 @@ class _AuthScreenState extends State<AuthScreen> {
         (widget.repository == null
             ? AuthSession.shared
             : AuthSession(store: _repo.store));
+    _nativeAndroidGoogle =
+        !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android &&
+        widget.googlePlatform == null &&
+        widget.googleLauncher == null;
+    _google = _nativeAndroidGoogle
+        ? AndroidGoogleSignInFlow(session: _session, repository: _repo)
+        : GoogleSignInFlow(
+            session: _session,
+            repository: _repo,
+            platform: widget.googlePlatform,
+            launch: widget.googleLauncher,
+          );
     _mode = widget.defaultView == 'signup' ? 'signup' : 'signin';
   }
 
   @override
   void dispose() {
     if (_attempt case final attempt?) _session.cancel(attempt);
+    _google.dispose();
     if (widget.repository == null) _repo.close();
     _emailFocus.dispose();
     _passwordFocus.dispose();
@@ -415,19 +438,21 @@ class _AuthScreenState extends State<AuthScreen> {
     if (_loading || _destination != null) return;
     setState(() {
       _loading = true;
+      _googlePending = true;
+      _error = null;
     });
     try {
-      // Use the production callback URL that the React app registers with Google.
-      const callbackUrl = 'https://creo.agency/auth/google/callback';
-      final url = await _repo.getGoogleAuthUrl(callbackUrl);
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (_) {
-      // silently ignore – Google URL fetch failed
+      final user = await _google.signIn();
+      if (mounted) _navigateByRole(user);
+    } catch (error) {
+      if (mounted)
+        _showError(error, 'Google sign-in could not finish. Please try again.');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted)
+        setState(() {
+          _loading = false;
+          _googlePending = false;
+        });
     }
   }
 
@@ -483,8 +508,15 @@ class _AuthScreenState extends State<AuthScreen> {
                 children: [
                   Row(
                     children: [
-                      const CreoMark(height: 28),
-                      const Spacer(),
+                      const Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: CreoWordmark(fontSize: 32),
+                          ),
+                        ),
+                      ),
                       if (CreoAppearanceScope.maybeOf(context) != null)
                         const CreoThemeToggle(),
                     ],
@@ -526,7 +558,9 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: Padding(
                         padding: const EdgeInsets.only(bottom: 24),
                         child: Text(
-                          'Sign-in accepted. ${_destination!.blocker}',
+                          _destination!.blocker == null
+                              ? 'Sign-in accepted. Opening your workspace…'
+                              : 'Sign-in accepted. ${_destination!.blocker}',
                           key: const Key('destination-status'),
                         ),
                       ),
@@ -588,6 +622,21 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                     const SizedBox(height: 24),
                     _GooglePill(onPressed: busy ? null : _startGoogleSignIn),
+                    if (_googlePending) ...[
+                      const SizedBox(height: 12),
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          _nativeAndroidGoogle
+                              ? 'Choose your Google account to continue, or cancel to use another method.'
+                              : 'Finish Google sign-in in your browser, or cancel to use another method.',
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _google.cancel,
+                        child: const Text('Cancel Google sign-in'),
+                      ),
+                    ],
                     const SizedBox(height: 32),
                     Wrap(
                       alignment: WrapAlignment.center,

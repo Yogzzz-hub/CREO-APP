@@ -29,7 +29,7 @@ class CreoApp extends StatelessWidget {
     final owner = session ?? AuthSession.shared;
     final colors = appearance ?? CreoAppearance.shared;
     final routes = <String, WidgetBuilder>{
-      '/': (context) => const SplashScreen(),
+      '/': (context) => const SplashScreen(next: '/login'),
       '/login': (context) => AuthScreen(
         defaultView: 'signin',
         session: owner,
@@ -44,6 +44,9 @@ class CreoApp extends StatelessWidget {
         repository: owner.repository,
       ),
     };
+    // The lifecycle gate resolves the authenticated role before this route
+    // can show content. Signed-out portal links open the existing sign-in form.
+    routes['/portal'] = routes['/login']!;
     return ListenableBuilder(
       listenable: Listenable.merge([owner, colors]),
       builder: (context, _) => MaterialApp(

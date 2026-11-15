@@ -370,7 +370,23 @@ void main() {
           SessionResponse.fromJson(sessionJson(role: role)).user,
         );
         expect(intent.path, homes[role]);
-        expect(intent.blocker, isNotNull);
+        expect(
+          intent.blocker,
+          const [
+                'editor',
+                'designer',
+                'team_lead',
+                'freelancer',
+                'admin',
+                'super_admin',
+                'client',
+                'sales',
+                'bde',
+                'bde_head',
+              ].contains(role)
+              ? isNull
+              : isNotNull,
+        );
       }
       expect(
         DestinationIntent.forUser(
@@ -384,7 +400,7 @@ void main() {
         DestinationIntent.forUser(
           SessionResponse.fromJson(restricted).user,
         ).path,
-        null,
+        '/set-mandatory-password',
       );
     },
   );

@@ -129,7 +129,7 @@ void main() {
       response.complete(http.Response(jsonEncode(sessionJson()), 200));
       await tester.pumpAndSettle();
       expect(intent?.path, '/portal');
-      expect(intent?.blocker, isNotNull);
+      expect(intent?.blocker, isNull);
       expect(store.value?.userId, 'account-a');
       expect(find.byKey(const Key('destination-status')), findsOneWidget);
       expect(tester.widget<TextFormField>(password).controller!.text, isEmpty);

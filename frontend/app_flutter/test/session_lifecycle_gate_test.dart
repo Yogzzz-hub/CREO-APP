@@ -3,6 +3,11 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:app_flutter/main.dart';
 import 'package:app_flutter/src/core/auth_session.dart';
+import 'package:app_flutter/src/features/portal/client_portal_screen.dart';
+import 'package:app_flutter/src/features/onboarding/client_onboarding_page.dart';
+import 'package:app_flutter/src/features/team_lead/team_lead_page.dart';
+import 'package:app_flutter/src/features/freelancer/freelancer_workspace_page.dart';
+import 'package:app_flutter/src/features/workstation/workstation_page.dart';
 import 'package:app_flutter/src/core/session_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -44,6 +49,45 @@ void main() {
     );
   }
 
+  for (final role in ['client', 'team_lead', 'freelancer', 'unconfirmed']) {
+    testWidgets('normal app gates $role to its verified destination', (
+      tester,
+    ) async {
+      final store = MemorySessionStore()..value = saved();
+      final session = owner(store, (request) async {
+        if (request.url.path.endsWith('/auth/me'))
+          return jsonResponse({
+            ...profile(),
+            'role': role,
+            'onboarding_stage': 1,
+          });
+        if (request.url.path.endsWith('/onboarding/status'))
+          return jsonResponse({
+            'stage': 1,
+            'stage_name': 'Account verified',
+            'next_required_stage': 'terms',
+          });
+        return jsonResponse({'items': []});
+      });
+      await mount(tester, session);
+      await tester.pumpAndSettle();
+      if (role == 'client') {
+        expect(find.byType(ClientOnboardingPage), findsOneWidget);
+        expect(find.byType(ClientPortalScreen), findsNothing);
+      } else if (role == 'team_lead') {
+        expect(find.byType(TeamLeadPage), findsOneWidget);
+      } else if (role == 'freelancer') {
+        expect(find.byType(FreelancerWorkspacePage), findsOneWidget);
+      } else {
+        expect(find.text('Workspace unavailable'), findsOneWidget);
+      }
+      expect(find.byType(WorkstationPage), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      session.dispose();
+    });
+  }
+
   testWidgets(
     'T09 cold startup never exposes auth/app content before credentials are read',
     (tester) async {
@@ -57,13 +101,15 @@ void main() {
       expect(find.text('Checking your session'), findsOneWidget);
       expect(find.byKey(const Key('login-email')), findsNothing);
       store.readResult.complete(null);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
       expect(find.byKey(const Key('login-email')), findsOneWidget);
       expect(requests, 0);
     },
   );
   testWidgets(
-    'validated session shows only existing navigation boundary; logout resets navigation',
+    'validated client session opens portal; logout resets navigation',
     (tester) async {
       final store = MemorySessionStore()..value = saved();
       final me = Completer<http.Response>();
@@ -77,15 +123,15 @@ void main() {
       await tester.pump();
       expect(find.text('Checking your session'), findsOneWidget);
       me.complete(jsonResponse(profile()));
-      await tester.pumpAndSettle();
-      expect(find.text('You’re signed in'), findsOneWidget);
-      expect(
-        find.text('The mobile workspace is not implemented yet.'),
-        findsOneWidget,
-      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(find.byType(ClientPortalScreen), findsOneWidget);
       expect(find.byKey(const Key('login-email')), findsNothing);
-      await tester.tap(find.text('Sign out on this device'));
-      await tester.pumpAndSettle();
+      await session.logout(notifyServer: false);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
       expect(store.value, null);
       expect(find.byKey(const Key('login-email')), findsOneWidget);
       expect(find.text('Signed out on this device.'), findsOneWidget);
@@ -104,21 +150,27 @@ void main() {
         return jsonResponse(profile());
       });
       await mount(tester, session);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
       expect(find.text('Retry'), findsOneWidget);
       expect(store.value, isNotNull);
       expect(find.byKey(const Key('login-email')), findsNothing);
       offline = false;
       await tester.tap(find.text('Retry'));
-      await tester.pumpAndSettle();
-      expect(find.text('You’re signed in'), findsOneWidget);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(find.byType(ClientPortalScreen), findsOneWidget);
       await session.logout(notifyServer: false);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
       expect(find.byKey(const Key('login-email')), findsOneWidget);
     },
   );
   testWidgets(
-    'mandatory reset null token remains restricted, without inventing reset screens',
+    'mandatory reset null token shows the restricted password update form',
     (tester) async {
       final store = MemorySessionStore()..value = saved();
       final session = owner(
@@ -126,7 +178,9 @@ void main() {
         (_) async => jsonResponse(profile(restricted: true)),
       );
       await mount(tester, session);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
       expect(find.text('Password update required'), findsOneWidget);
       expect(session.current?.accessToken, store.value?.accessToken);
       expect(find.byKey(const Key('login-email')), findsNothing);
@@ -138,12 +192,15 @@ void main() {
       final store = MemorySessionStore()..value = saved();
       var requests = 0;
       final next = Completer<http.Response>();
-      final session = owner(
-        store,
-        (_) async => ++requests == 1 ? jsonResponse(profile()) : next.future,
-      );
+      final session = owner(store, (request) async {
+        if (!request.url.path.endsWith('/me'))
+          return jsonResponse({'items': []});
+        return ++requests == 1 ? jsonResponse(profile()) : next.future;
+      });
       await mount(tester, session);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
@@ -151,8 +208,10 @@ void main() {
       expect(requests, 2);
       expect(find.text('Checking your session'), findsOneWidget);
       next.complete(jsonResponse(profile()));
-      await tester.pumpAndSettle();
-      expect(find.text('You’re signed in'), findsOneWidget);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(find.byType(ClientPortalScreen), findsOneWidget);
     },
   );
   testWidgets('partial clear failure blocks login and exposes retry sign-out', (
@@ -162,14 +221,20 @@ void main() {
     store.failClear = true;
     final session = owner(store, (_) async => jsonResponse(profile()));
     await mount(tester, session);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Sign out on this device'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    await session.logout(notifyServer: false);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
     expect(find.text('Retry sign-out'), findsOneWidget);
     expect(find.byKey(const Key('login-email')), findsNothing);
     store.failClear = false;
     await tester.tap(find.text('Retry sign-out'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
     expect(find.byKey(const Key('login-email')), findsOneWidget);
   });
   testWidgets(
@@ -181,7 +246,9 @@ void main() {
         (_) async => throw TimeoutException('timeout'),
       );
       await mount(tester, session, scale: 2);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
       expect(find.text('creo.'), findsOneWidget);
       expect(
         find.byWidgetPredicate(
@@ -217,7 +284,9 @@ void main() {
         image.dispose();
       });
       response.complete(jsonResponse(profile()));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
       expect(tester.takeException(), null);
     },
   );

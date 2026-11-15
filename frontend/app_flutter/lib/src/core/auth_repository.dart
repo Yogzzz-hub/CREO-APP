@@ -202,6 +202,24 @@ class AuthRepository {
     if (_ownsClient) _client.close();
   }
 
+  /// Public media links never receive bearer headers. Relative upload URLs use
+  /// the same configured HTTPS origin as API calls.
+  Uri? resolveMediaUri(String value) {
+    try {
+      final candidate = Uri.parse(value.trim());
+      final resolved = candidate.hasScheme
+          ? candidate
+          : _url('/').resolveUri(candidate);
+      return resolved.scheme == 'https' &&
+              resolved.host.isNotEmpty &&
+              resolved.userInfo.isEmpty
+          ? resolved
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── Token helpers ──────────────────────────────────────────────────────
   Future<String?> getAccessToken() async => (await store.read())?.accessToken;
 
@@ -271,18 +289,41 @@ class AuthRepository {
     String path, {
     String? accessToken,
     Map<String, dynamic>? body,
+    Map<String, String> headers = const {},
+    bool binaryResponse = false,
     Duration? requestTimeout,
+    Future<http.BaseRequest> Function(Uri uri)? buildRequest,
   }) async {
     if (!path.startsWith('/api/')) {
       throw ArgumentError('Only local API paths are supported');
     }
     try {
-      final request = http.Request(method.toUpperCase(), _url(path));
-      request.headers['Content-Type'] = 'application/json';
+      final uri = _url(path);
+      final request = buildRequest == null
+          ? http.Request(method.toUpperCase(), uri)
+          : await buildRequest(uri);
+      if (request.url != uri || request.method != method.toUpperCase()) {
+        throw ArgumentError(
+          'Request must match the authenticated API operation',
+        );
+      }
+      if (headers.keys.any(
+        (key) => {'authorization', 'content-type'}.contains(key.toLowerCase()),
+      )) {
+        throw ArgumentError(
+          'Authentication and content type belong to the shared transport',
+        );
+      }
+      request.headers.addAll(headers);
+      if (buildRequest == null) {
+        request.headers['Content-Type'] = 'application/json';
+      }
       if (accessToken != null && accessToken.isNotEmpty) {
         request.headers['Authorization'] = 'Bearer $accessToken';
       }
-      if (body != null) request.body = jsonEncode(body);
+      if (body != null && request is http.Request) {
+        request.body = jsonEncode(body);
+      }
       final response =
           await (() async => http.Response.fromStream(
             await _client.send(request),
@@ -293,12 +334,18 @@ class AuthRepository {
                     : timeout),
           );
       _throwIfError(response);
+      if (binaryResponse)
+        return {'bytes': response.bodyBytes, 'headers': response.headers};
       if (response.statusCode == 204 ||
           response.statusCode == 205 ||
           response.body.isEmpty) {
         return {};
       }
-      return jsonDecode(response.body) as Map<String, dynamic>;
+      final decoded = jsonDecode(response.body);
+      // Preserve direct array contracts through the existing map-based session
+      // transport. Existing object responses retain their exact shape.
+      if (decoded is List) return {'items': decoded};
+      return decoded as Map<String, dynamic>;
     } on HttpError {
       rethrow;
     } on TimeoutException {
@@ -457,17 +504,180 @@ class AuthRepository {
     return session;
   }
 
-  /// GET /api/v1/auth/google/url  → returns Google OAuth consent URL
-  Future<String> getGoogleAuthUrl(String callbackUrl) async {
-    final uri = _url(
-      '/api/v1/auth/google/url',
-    ).replace(queryParameters: {'redirect_uri': callbackUrl});
-    final res = await _client
-        .get(uri, headers: await _headers())
-        .timeout(timeout);
-    _throwIfError(res);
-    final json = jsonDecode(res.body) as Map<String, dynamic>;
-    return json['url'] as String;
+  /// Existing web requests omit PKCE; native requests require explicit S256 support.
+  Future<String> getGoogleAuthUrl([
+    String? callbackUrl,
+    String? codeChallenge,
+  ]) async {
+    final callback = callbackUrl?.trim();
+    if (codeChallenge != null &&
+        !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(codeChallenge))
+      throw const HttpError(
+        status: 0,
+        code: 'GOOGLE_CONFIGURATION_ERROR',
+        message: 'A secure Google authorization request could not be created.',
+      );
+    if (callback != null && callback.isNotEmpty && !_secureCallback(callback))
+      throw const HttpError(
+        status: 0,
+        code: 'GOOGLE_CONFIGURATION_ERROR',
+        message: 'Google sign-in needs a valid registered HTTPS callback.',
+      );
+    final query = <String, String>{
+      if (callback != null && callback.isNotEmpty) 'redirect_uri': callback,
+      if (codeChallenge != null) 'code_challenge': codeChallenge,
+      if (codeChallenge != null) 'code_challenge_method': 'S256',
+    };
+    final result = await requestJson(
+      'GET',
+      Uri(
+        path: '/api/v1/auth/google/url',
+        queryParameters: query.isEmpty ? null : query,
+      ).toString(),
+    );
+    final value = result['url'];
+    final uri = value is String ? Uri.tryParse(value) : null;
+    final state = result['state'];
+    if (codeChallenge != null &&
+        (result['pkce_supported'] != true ||
+            uri?.queryParameters['code_challenge'] != codeChallenge ||
+            uri?.queryParameters['code_challenge_method'] != 'S256'))
+      throw const HttpError(
+        status: 0,
+        code: 'GOOGLE_MOBILE_NOT_READY',
+        message:
+            'Google mobile sign-in needs the compatible server update. Please use email sign-in until it is deployed.',
+      );
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host != 'accounts.google.com' ||
+        uri.userInfo.isNotEmpty ||
+        uri.fragment.isNotEmpty ||
+        !{'/o/oauth2/v2/auth', '/o/oauth2/auth'}.contains(uri.path) ||
+        state is! String ||
+        state.isEmpty ||
+        uri.queryParameters['state'] != state ||
+        (uri.queryParameters['client_id'] ?? '').isEmpty ||
+        uri.queryParameters['client_id']!.startsWith('mock_') ||
+        !_secureCallback(uri.queryParameters['redirect_uri'] ?? '') ||
+        (callback != null &&
+            callback.isNotEmpty &&
+            uri.queryParameters['redirect_uri'] != callback))
+      throw const HttpError(
+        status: 0,
+        code: 'GOOGLE_CONFIGURATION_ERROR',
+        message:
+            'Google sign-in configuration could not be verified. Please contact your administrator.',
+      );
+    return value as String;
+  }
+
+  Future<SessionResponse> exchangeGoogleCode({
+    required String code,
+    required String redirectUri,
+    required String verifier,
+  }) async {
+    try {
+      final json = await _post('/api/v1/auth/google/callback', {
+        'code': code,
+        'redirect_uri': redirectUri,
+        'code_verifier': verifier,
+      });
+      final session = SessionResponse.fromJson(json);
+      if (session.accessToken.isEmpty ||
+          session.user.id.isEmpty ||
+          session.user.email.isEmpty ||
+          session.user.role.isEmpty)
+        throw const FormatException('Incomplete Google session');
+      return session;
+    } on HttpError {
+      rethrow;
+    } on FormatException {
+      throw const HttpError(
+        status: 0,
+        code: 'INVALID_RESPONSE',
+        message:
+            'Google returned an incomplete sign-in response. Please try again.',
+      );
+    } on TypeError {
+      throw const HttpError(
+        status: 0,
+        code: 'INVALID_RESPONSE',
+        message:
+            'Google returned an incomplete sign-in response. Please try again.',
+      );
+    }
+  }
+
+  Future<String> getAndroidGoogleServerClientId() async {
+    try {
+      final data = await requestJson(
+        'GET',
+        '/api/v1/auth/google/android/config',
+      );
+      final client = data['server_client_id'];
+      if (client is! String ||
+          !RegExp(
+            r'^\d+-[A-Za-z0-9]+\.apps\.googleusercontent\.com$',
+          ).hasMatch(client)) {
+        throw const FormatException('Invalid Google server client');
+      }
+      return client;
+    } on HttpError catch (error) {
+      if (error.status != 404) rethrow;
+      throw const HttpError(
+        status: 404,
+        code: 'GOOGLE_ANDROID_NOT_READY',
+        message:
+            'Android Google sign-in needs the server update. Please use email sign-in until it is deployed.',
+      );
+    } on FormatException {
+      throw const HttpError(
+        status: 0,
+        code: 'GOOGLE_CONFIGURATION_ERROR',
+        message: 'Google sign-in configuration could not be verified.',
+      );
+    }
+  }
+
+  Future<SessionResponse> exchangeAndroidGoogleCode(String code) async {
+    final data = await _post('/api/v1/auth/google/android/callback', {
+      'code': code,
+    });
+    try {
+      final response = SessionResponse.fromJson(data);
+      if (response.accessToken.isEmpty ||
+          (response.refreshToken ?? '').isEmpty ||
+          response.user.id.isEmpty ||
+          response.user.email.isEmpty ||
+          response.user.role.isEmpty) {
+        throw const FormatException('Incomplete Google session');
+      }
+      return response;
+    } on FormatException {
+      throw const HttpError(
+        status: 0,
+        code: 'INVALID_RESPONSE',
+        message:
+            'Google returned an incomplete sign-in response. Please try again.',
+      );
+    } on TypeError {
+      throw const HttpError(
+        status: 0,
+        code: 'INVALID_RESPONSE',
+        message:
+            'Google returned an incomplete sign-in response. Please try again.',
+      );
+    }
+  }
+
+  static bool _secureCallback(String value) {
+    final uri = Uri.tryParse(value);
+    return uri != null &&
+        uri.scheme == 'https' &&
+        uri.host.isNotEmpty &&
+        uri.userInfo.isEmpty &&
+        uri.fragment.isEmpty;
   }
 
   /// POST /api/v1/auth/forgot-password

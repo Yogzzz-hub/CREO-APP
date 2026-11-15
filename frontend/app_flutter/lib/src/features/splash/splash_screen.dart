@@ -13,30 +13,32 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  // 0-30% fade in, 30-50% hold, 50-100% zoom through the "C" toward the viewer.
-  late final _ctrl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 2000),
-  );
-  late final _fadeIn = CurvedAnimation(
-    parent: _ctrl,
-    curve: const Interval(0, .3, curve: Curves.easeOut),
-  );
-  late final _zoom = CurvedAnimation(
-    parent: _ctrl,
-    curve: const Interval(.5, 1, curve: Curves.easeInCubic),
-  );
-  late final _fadeOut = CurvedAnimation(
-    parent: _ctrl,
-    curve: const Interval(.8, 1),
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl.forward().whenComplete(() {
+  late final _ctrl =
+      AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 900),
+      )..addStatusListener((status) {
+        if (status == AnimationStatus.completed) _finish();
+      });
+  bool _started = false, _navigated = false;
+  void _finish() {
+    if (_navigated) return;
+    _navigated = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) Navigator.of(context).pushReplacementNamed(widget.next);
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _ctrl.stop();
+      _finish();
+    } else if (!_started) {
+      _started = true;
+      _ctrl.forward();
+    }
   }
 
   @override
@@ -46,29 +48,64 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF171614),
-      body: Center(
+  Widget build(BuildContext context) => Scaffold(
+    body: SafeArea(
+      child: Center(
         child: AnimatedBuilder(
           animation: _ctrl,
-          builder: (context, child) => Opacity(
-            opacity: _fadeIn.value * (1 - _fadeOut.value),
-            child: Transform.scale(
-              // Centre of the "C" so the camera flies through its opening.
-              alignment: const Alignment(-.36, 0),
-              scale: 0.9 + 0.1 * _fadeIn.value + 30 * _zoom.value,
-              child: child,
-            ),
+          builder: (context, child) {
+            final progress = Curves.easeOutCubic.transform(_ctrl.value);
+            return Opacity(
+              opacity: progress,
+              child: Transform.translate(
+                offset: Offset(0, 8 * (1 - progress)),
+                child: child,
+              ),
+            );
+          },
+          child: Semantics(
+            label: 'Creo. Opening sign in.',
+            child: ExcludeSemantics(child: CreoWordmark(fontSize: 54)),
           ),
-          child: const CreoMark(height: 64),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
-/// The "C." mark, drawn in code so it stays sharp at any size.
+/// Product wordmark with the shared warm accent on its dot.
+class CreoWordmark extends StatelessWidget {
+  const CreoWordmark({super.key, this.fontSize = 26});
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) => Text.rich(
+    TextSpan(
+      children: [
+        TextSpan(
+          text: 'creo',
+          style: TextStyle(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white
+                : const Color(0xFF2B1E15),
+          ),
+        ),
+        const TextSpan(
+          text: '.',
+          style: TextStyle(color: Color(0xFFD2965A)),
+        ),
+      ],
+    ),
+    semanticsLabel: 'Creo',
+    style: TextStyle(
+      fontFamily: 'Inter',
+      fontSize: fontSize,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -1,
+    ),
+  );
+}
+
 class CreoMark extends StatelessWidget {
   const CreoMark({super.key, this.height = 64});
   final double height;

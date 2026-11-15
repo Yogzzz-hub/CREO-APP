@@ -1,8 +1,20 @@
 import 'dart:async';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'auth_repository.dart';
 import 'session_store.dart';
+
+class AuthenticatedBytes {
+  const AuthenticatedBytes(
+    this.bytes,
+    this.contentType,
+    this.contentDisposition,
+  );
+  final Uint8List bytes;
+  final String contentType;
+  final String? contentDisposition;
+}
 
 class DestinationIntent {
   const DestinationIntent(this.path, {this.blocker});
@@ -11,14 +23,15 @@ class DestinationIntent {
 
   factory DestinationIntent.forUser(AuthUser user) {
     if (user.mustResetPassword == true) {
-      return const DestinationIntent(
-        null,
-        blocker:
-            'Password reset is required before continuing. The reset destination is not implemented yet.',
-      );
+      return const DestinationIntent('/set-mandatory-password');
+    }
+    if ((user.role == 'client' || user.role == 'client_owner') &&
+        user.onboardingStage < 8) {
+      return const DestinationIntent('/onboarding');
     }
     const homes = {
       'client': '/portal',
+      'client_owner': '/portal',
       'admin': '/admin',
       'super_admin': '/admin',
       'editor': '/workstation',
@@ -30,7 +43,23 @@ class DestinationIntent {
       'freelancer': '/freelancer/tasks',
       'investor_relations': '/admin/reports',
     };
+    const implemented = [
+      'editor',
+      'designer',
+      'team_lead',
+      'freelancer',
+      'admin',
+      'super_admin',
+      'client',
+      'client_owner',
+      'sales',
+      'bde',
+      'bde_head',
+    ];
     final home = homes[user.role];
+    if (home != null && implemented.contains(user.role)) {
+      return DestinationIntent(home);
+    }
     return DestinationIntent(
       home,
       blocker: home == null
@@ -76,6 +105,7 @@ class AuthSession extends ChangeNotifier {
   StoredSession? _credentials;
   Future<void>? _restoration;
   Future<void>? _clearing;
+  Future<void> Function()? _pendingAccountClear;
   Future<StoredSession>? _refresh;
   int? _refreshGeneration;
   SessionPhase phase = SessionPhase.uninitialized;
@@ -134,6 +164,59 @@ class AuthSession extends ChangeNotifier {
   }
 
   bool isCurrent(int attempt) => attempt == _generation;
+
+  /// Read-only operation identity; unlike beginAttempt this does not invalidate
+  /// another request or start a login/session adoption.
+  int get beginReadGeneration => _generation;
+  int? _mandatoryPasswordGeneration;
+
+  Future<void> setMandatoryPassword(String password) async {
+    final previous = _current;
+    if (phase != SessionPhase.authenticated ||
+        previous?.user.mustResetPassword != true) {
+      throw const HttpError(
+        status: 403,
+        code: 'RESET_VERIFICATION_REQUIRED',
+        message: 'Use password recovery to change this account password.',
+      );
+    }
+    if (_mandatoryPasswordGeneration != null &&
+        isCurrent(_mandatoryPasswordGeneration!)) {
+      throw const HttpError(
+        status: 0,
+        code: 'REQUEST_PENDING',
+        message: 'Your password update is already in progress.',
+      );
+    }
+    final attempt = beginAttempt();
+    _mandatoryPasswordGeneration = attempt;
+    try {
+      // Use the session owner so an expired restricted access token can be
+      // renewed before the write. AuthSession deliberately never replays
+      // writes after a 401, so this does not make the password change unsafe.
+      final result = await request(
+        'POST',
+        '/api/v1/auth/set-mandatory-password',
+        body: {'new_password': password},
+      );
+      _check(attempt);
+      final next = SessionResponse.fromJson(result);
+      if (next.user.id != previous!.user.id ||
+          next.user.mustResetPassword == true ||
+          next.accessToken.isEmpty) {
+        throw const HttpError(
+          status: 0,
+          code: 'INVALID_RESPONSE',
+          message: 'The updated account could not be verified.',
+        );
+      }
+      if (!await adopt(next, attempt)) _check(attempt);
+    } finally {
+      if (_mandatoryPasswordGeneration == attempt)
+        _mandatoryPasswordGeneration = null;
+    }
+  }
+
   void cancel(int attempt) {
     if (isCurrent(attempt)) _generation++;
   }
@@ -227,6 +310,13 @@ class AuthSession extends ChangeNotifier {
 
   Future<void> resume() {
     if (_restoration != null) return _restoration!;
+    // A forced password change invalidates the old token server-side. A
+    // simultaneous profile restore can therefore turn a successful password
+    // update into an apparent sign-out before its replacement token is adopted.
+    if (_mandatoryPasswordGeneration != null &&
+        isCurrent(_mandatoryPasswordGeneration!)) {
+      return Future<void>.value();
+    }
     if (phase != SessionPhase.authenticated &&
         phase != SessionPhase.unavailable) {
       return Future<void>.value();
@@ -323,11 +413,106 @@ class AuthSession extends ChangeNotifier {
 
   /// Auth-entry calls are never renewed. Only safe reads may replay after an
   /// explicit 401; writes are never retried after ambiguous completion.
+  Future<AuthUser> updateProfile({
+    required String fullName,
+    required String phone,
+  }) async {
+    final generation = _generation;
+    final userId = _current?.user.id;
+    if (phase != SessionPhase.authenticated || userId == null) {
+      throw const HttpError(
+        status: 401,
+        code: 'UNAUTHORIZED',
+        message: 'Please sign in again.',
+      );
+    }
+    final response = await request(
+      'PATCH',
+      '/api/v1/users/me',
+      body: {'full_name': fullName.trim(), 'phone': phone.trim()},
+    );
+    _check(generation);
+    final currentUser = _current!.user;
+    final profile = ProfileResponse.fromJson({
+      'company_name': currentUser.companyName,
+      'onboarding_status': currentUser.onboardingStatus,
+      'onboarding_stage': currentUser.onboardingStage,
+      'terms_accepted': currentUser.termsAccepted,
+      'must_reset_password': currentUser.mustResetPassword,
+      'sign_in_methods': currentUser.signInMethods,
+      ...response,
+    });
+    if (profile.user.id != userId) {
+      throw const HttpError(
+        status: 0,
+        code: 'ACCOUNT_MISMATCH',
+        message: 'The returned profile belongs to another account.',
+      );
+    }
+    return _queue(() async {
+      _check(generation);
+      final previous = _credentials;
+      if (previous == null) {
+        throw const HttpError(
+          status: 401,
+          code: 'UNAUTHORIZED',
+          message: 'Please sign in again.',
+        );
+      }
+      final next = StoredSession(
+        profile.accessToken ?? previous.accessToken,
+        previous.refreshToken,
+        userId,
+      );
+      try {
+        await store.write(next);
+        if (!isCurrent(generation)) {
+          await store.write(previous);
+          _check(generation);
+        }
+      } catch (error) {
+        try {
+          await store.write(previous);
+        } catch (_) {
+          _current = null;
+          _credentials = null;
+          phase = SessionPhase.storageFailure;
+          issue = const HttpError(
+            status: 0,
+            code: 'STORAGE_ERROR',
+            message:
+                'The updated session could not be saved or rolled back. Clear the saved session safely before continuing.',
+          );
+          _publish();
+          throw issue!;
+        }
+        if (error is HttpError) rethrow;
+        throw const HttpError(
+          status: 0,
+          code: 'STORAGE_WRITE_FAILED',
+          message:
+              'Your profile was saved on the server, but the updated session could not be saved on this device. Your previous saved session was retained.',
+        );
+      }
+      _credentials = next;
+      _current = SessionResponse(
+        accessToken: next.accessToken,
+        refreshToken: next.refreshToken,
+        user: profile.user,
+      );
+      _publish();
+      return profile.user;
+    });
+  }
+
   Future<Map<String, dynamic>> request(
     String method,
     String path, {
     Map<String, dynamic>? body,
+    Map<String, String> headers = const {},
+    bool binaryResponse = false,
     Duration? requestTimeout,
+    Future<http.BaseRequest> Function(Uri uri)? buildRequest,
   }) async {
     final generation = _generation;
     final verb = method.toUpperCase();
@@ -347,7 +532,10 @@ class AuthSession extends ChangeNotifier {
         verb,
         path,
         body: body,
+        headers: headers,
+        binaryResponse: binaryResponse,
         requestTimeout: requestTimeout,
+        buildRequest: buildRequest,
       );
       _check(generation);
       return result;
@@ -384,7 +572,10 @@ class AuthSession extends ChangeNotifier {
         path,
         accessToken: tokenUsed,
         body: body,
+        headers: headers,
+        binaryResponse: binaryResponse,
         requestTimeout: requestTimeout,
+        buildRequest: buildRequest,
       );
       _check(generation);
       return result;
@@ -411,7 +602,10 @@ class AuthSession extends ChangeNotifier {
             path,
             accessToken: replacement.accessToken,
             body: body,
+            headers: headers,
+            binaryResponse: binaryResponse,
             requestTimeout: requestTimeout,
+            buildRequest: buildRequest,
           );
           _check(generation);
           return result;
@@ -430,6 +624,17 @@ class AuthSession extends ChangeNotifier {
       await _reject(generation, error);
       rethrow;
     }
+  }
+
+  /// Authenticated GET with the same refresh, replay and stale-result rules.
+  Future<AuthenticatedBytes> requestBytes(String path) async {
+    final result = await request('GET', path, binaryResponse: true);
+    final headers = result['headers'] as Map<String, String>;
+    return AuthenticatedBytes(
+      result['bytes'] as Uint8List,
+      headers['content-type'] ?? 'application/octet-stream',
+      headers['content-disposition'],
+    );
   }
 
   bool _isEnded(HttpError error) =>
@@ -552,8 +757,13 @@ class AuthSession extends ChangeNotifier {
     await logout(notifyServer: false, reason: error);
   }
 
-  Future<void> logout({bool notifyServer = true, HttpError? reason}) {
+  Future<void> logout({
+    bool notifyServer = true,
+    HttpError? reason,
+    Future<void> Function()? clearAccountData,
+  }) {
     if (_clearing != null) return _clearing!;
+    _pendingAccountClear = clearAccountData ?? _pendingAccountClear;
     final token = _credentials?.accessToken ?? _current?.accessToken;
     final generation = ++_generation; // Invalidate before awaiting any I/O.
     navigationEpoch++;
@@ -581,6 +791,17 @@ class AuthSession extends ChangeNotifier {
     final pending = _queue(() async {
       try {
         await store.write(null);
+        try {
+          await _pendingAccountClear?.call();
+          _pendingAccountClear = null;
+        } catch (_) {
+          issue = const HttpError(
+            status: 0,
+            code: 'CACHE_CLEAR_FAILED',
+            message:
+                'Local account settings could not be cleared. Retry sign-out before continuing.',
+          );
+        }
         if (isCurrent(generation)) {
           phase = issue?.code == 'CACHE_CLEAR_FAILED'
               ? SessionPhase.storageFailure

@@ -81,7 +81,10 @@ class CreoPalette extends ThemeExtension<CreoPalette> {
 
 extension CreoThemeContext on BuildContext {
   CreoPalette get creo =>
-      Theme.of(this).extension<CreoPalette>() ?? const CreoPalette();
+      Theme.of(this).extension<CreoPalette>() ??
+      CreoPalette(
+        lightness: Theme.of(this).brightness == Brightness.light ? 1 : 0,
+      );
 }
 
 ThemeData buildCreoTheme({Brightness brightness = Brightness.dark}) {
@@ -91,12 +94,58 @@ ThemeData buildCreoTheme({Brightness brightness = Brightness.dark}) {
   final accent = palette.accent;
 
   return ThemeData(
+    fontFamily: 'Inter',
     brightness: brightness,
     extensions: [palette],
     dividerColor: palette.appLine,
     focusColor: palette.accent.withValues(alpha: .18),
     scaffoldBackgroundColor: palette.appBase,
     primaryColor: accent,
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: palette.appSurface,
+      indicatorColor: palette.accent.withValues(alpha: .16),
+      iconTheme: WidgetStateProperty.resolveWith(
+        (states) => IconThemeData(
+          color: states.contains(WidgetState.selected)
+              ? palette.accent
+              : palette.appMist,
+        ),
+      ),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 12,
+          fontWeight: states.contains(WidgetState.selected)
+              ? FontWeight.w700
+              : FontWeight.w500,
+          color: states.contains(WidgetState.selected)
+              ? palette.appInk
+              : palette.appMist,
+        ),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: palette.accent,
+        foregroundColor: palette.onAccent,
+        minimumSize: const Size(48, 52),
+        textStyle: const TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: palette.appSurface,
+      selectedColor: Color.alphaBlend(
+        palette.accent.withValues(alpha: .16),
+        palette.appSurface,
+      ),
+      checkmarkColor: palette.accent,
+      labelStyle: TextStyle(color: palette.appInk, fontWeight: FontWeight.w600),
+      side: BorderSide(color: palette.appLine),
+    ),
     colorScheme: ColorScheme(
       brightness: brightness,
       onSecondary: palette.appBase,

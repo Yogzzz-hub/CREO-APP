@@ -335,7 +335,10 @@ void main() {
       expect(session.current?.user.mustResetPassword, true);
       expect(session.current?.accessToken, jwt());
       expect(store.value?.accessToken, jwt());
-      expect(DestinationIntent.forUser(session.current!.user).path, null);
+      expect(
+        DestinationIntent.forUser(session.current!.user).path,
+        '/set-mandatory-password',
+      );
     },
   );
   test(
@@ -592,4 +595,44 @@ void main() {
     expect(session.phase, SessionPhase.unavailable);
     session.repository.close();
   });
+  test(
+    'Async account cleanup invalidates immediately and failed cleanup remains retryable',
+    () async {
+      final store = MemorySessionStore()..value = saved();
+      final session = owner(store, (_) async => jsonResponse(profile()));
+      await session.restore();
+      final oldGeneration = session.beginReadGeneration;
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      var calls = 0;
+      final logout = session.logout(
+        notifyServer: false,
+        clearAccountData: () async {
+          calls++;
+          if (calls == 1) {
+            entered.complete();
+            await release.future;
+            throw StateError('temporary preference store failure');
+          }
+        },
+      );
+      expect(session.current, isNull);
+      expect(session.isCurrent(oldGeneration), false);
+      expect(session.phase, SessionPhase.clearing);
+      await entered.future;
+      expect(store.value, isNull);
+      release.complete();
+      await logout;
+      expect(session.phase, SessionPhase.storageFailure);
+      expect(session.issue?.code, 'CACHE_CLEAR_FAILED');
+      expect(
+        () => session.beginAttempt(),
+        throwsA(code('SESSION_UNAVAILABLE')),
+      );
+      await session.logout(notifyServer: false);
+      expect(calls, 2);
+      expect(session.phase, SessionPhase.signedOut);
+      session.dispose();
+    },
+  );
 }
