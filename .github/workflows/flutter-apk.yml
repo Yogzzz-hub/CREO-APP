@@ -52,6 +52,9 @@ jobs:
         run: sdkmanager 'ndk;28.2.13676358'
       - name: Resolve locked dependencies
         run: flutter pub get --enforce-lockfile
+      - name: Configure CI Gradle memory
+        run: |
+          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError\norg.gradle.workers.max=2\n' >> android/gradle.properties
       - name: Build debug APK
         run: flutter build apk --debug --no-pub --build-number="${{ github.run_number }}"
       - name: Package APK and checksum
