@@ -34,7 +34,15 @@ void main() {
       });
       await session.restore();
       await tester.pumpWidget(
-        CreoApp(session: session, initialRoute: '/portal'),
+        CreoApp(
+          session: session,
+          // Own instance: the shared one leaks theme between test cases.
+          appearance: CreoAppearance(
+            read: () async => null,
+            write: (_) async {},
+          ),
+          initialRoute: '/portal',
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.byType(ClientPortalScreen), findsNothing);
@@ -103,7 +111,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(entry.value), findsOneWidget);
-        await tester.state<NavigatorState>(find.byType(Navigator)).pop();
+        tester.state<NavigatorState>(find.byType(Navigator).last).pop();
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(DeliverablesReviewScreen), findsOneWidget);
@@ -119,7 +127,9 @@ void main() {
       await appearance.toggle();
       await tester.pump(const Duration(milliseconds: 300));
       expect(
-        Theme.of(tester.element(find.byType(DeliverablesReviewScreen))).brightness,
+        Theme.of(
+          tester.element(find.byType(DeliverablesReviewScreen)),
+        ).brightness,
         Brightness.light,
       );
       await tester.pumpWidget(const SizedBox());

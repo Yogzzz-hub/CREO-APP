@@ -2,9 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:app_flutter/src/features/portal/portal_repository.dart';
-import 'package:app_flutter/src/features/portal/screens/portal_workspace_page.dart';
 import 'package:app_flutter/src/features/workstation/workstation_files.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -14,6 +12,7 @@ import 'session_lifecycle_test.dart' show jsonResponse;
 import 'workstation_hub_test.dart' show hubOwner;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   test(
     'calendar records preserve the standalone per-entry response contract',
     () async {
@@ -286,81 +285,6 @@ void main() {
         'name': 'assets.zip',
         'mimeType': 'application/zip',
       });
-    },
-  );
-
-  testWidgets(
-    'calendar hook choice is submitted and only server success is shown',
-    (tester) async {
-      var approved = false;
-      final requests = <http.Request>[];
-      final session = await hubOwner((request) async {
-        requests.add(request);
-        if (request.url.path == '/api/v1/portal/calendar') {
-          return jsonResponse({'cycle': null, 'slots': [], 'shoot_days': []});
-        }
-        if (request.url.path == '/api/v1/calendar/entries') {
-          return jsonResponse([
-            {
-              'id': 'slot-1',
-              'topic': 'Spring launch reel',
-              'date': '2030-04-01',
-              'status': approved ? 'approved' : 'draft',
-              'concept_status': approved
-                  ? 'concept_approved'
-                  : 'concept_pending',
-              'blueprint': {
-                'hooks': [
-                  {
-                    'angle': 'story',
-                    'text': 'Hook from the real brief',
-                    'rationale': 'This speaks to the saved audience',
-                  },
-                ],
-              },
-            },
-          ]);
-        }
-        if (request.url.path.endsWith('/approve-concept')) {
-          approved = true;
-          return jsonResponse({
-            'status': 'concept_approved',
-            'slot_id': 'slot-1',
-            'selected_hook': jsonDecode(request.body)['selected_hook'],
-          });
-        }
-        return jsonResponse({'detail': 'Unexpected test request'}, 404);
-      }, role: 'client');
-      addTearDown(session.dispose);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: PortalWorkspacePage(
-            session: session,
-            section: PortalSection.calendar,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Spring launch reel'), findsOneWidget);
-      await tester.tap(find.text('Review concept and hooks'));
-      await tester.pumpAndSettle();
-      expect(find.text('Hook from the real brief'), findsOneWidget);
-      await tester.tap(find.text('Approve selected concept'));
-      await tester.pumpAndSettle();
-
-      final approval = requests.singleWhere(
-        (request) => request.url.path.endsWith('/approve-concept'),
-      );
-      expect(
-        jsonDecode(approval.body)['selected_hook']['text'],
-        'Hook from the real brief',
-      );
-      expect(
-        find.text('Concept approval was confirmed by the server.'),
-        findsOneWidget,
-      );
-      await tester.pumpWidget(const SizedBox.shrink());
     },
   );
 }

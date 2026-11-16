@@ -49,34 +49,50 @@ class CreoTopHeader extends StatelessWidget implements PreferredSizeWidget {
                 children: [
                   if (onMenuTap != null) ...[
                     IconButton(
-                      icon: Icon(Icons.menu_rounded, size: 22, color: isDark ? CreoColors.ivory : CreoColors.lightEspresso),
+                      icon: Icon(
+                        Icons.menu_rounded,
+                        size: 22,
+                        color: isDark
+                            ? CreoColors.ivory
+                            : CreoColors.lightEspresso,
+                      ),
                       padding: EdgeInsets.zero,
                       visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
                       onPressed: onMenuTap,
                     ),
                     const SizedBox(width: 4),
                   ],
-                  RichText(
-                    text: TextSpan(
-                      text: 'creo',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.8,
-                        color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
-                      ),
-                      children: const [
-                        TextSpan(
-                          text: '.',
-                          style: TextStyle(
-                            color: CreoColors.amber,
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                          ),
+                  Flexible(
+                    child: RichText(
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.clip,
+                      text: TextSpan(
+                        text: 'creo',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.8,
+                          color: isDark
+                              ? CreoColors.ivory
+                              : CreoColors.lightEspresso,
                         ),
-                      ],
+                        children: const [
+                          TextSpan(
+                            text: '.',
+                            style: TextStyle(
+                              color: CreoColors.amber,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -105,14 +121,19 @@ class CreoTopHeader extends StatelessWidget implements PreferredSizeWidget {
                   onPressed: onNotificationTap,
                   padding: EdgeInsets.zero,
                   visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                   icon: Stack(
                     clipBehavior: Clip.none,
                     children: [
                       Icon(
                         Icons.notifications_outlined,
                         size: 20,
-                        color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
+                        color: isDark
+                            ? CreoColors.ivory
+                            : CreoColors.lightEspresso,
                       ),
                       if (notificationCount > 0)
                         Positioned(
@@ -124,7 +145,10 @@ class CreoTopHeader extends StatelessWidget implements PreferredSizeWidget {
                               color: CreoColors.badgeRed,
                               shape: BoxShape.circle,
                             ),
-                            constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+                            constraints: const BoxConstraints(
+                              minWidth: 15,
+                              minHeight: 15,
+                            ),
                             child: Center(
                               child: Text(
                                 '$notificationCount',
@@ -145,12 +169,18 @@ class CreoTopHeader extends StatelessWidget implements PreferredSizeWidget {
 
                 // Theme Toggle
                 IconButton(
+                  tooltip: 'Switch appearance',
                   onPressed: onThemeToggle,
                   padding: EdgeInsets.zero,
                   visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                   icon: Icon(
-                    isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                    isDark
+                        ? Icons.light_mode_outlined
+                        : Icons.dark_mode_outlined,
                     size: 20,
                     color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
                   ),
@@ -162,7 +192,10 @@ class CreoTopHeader extends StatelessWidget implements PreferredSizeWidget {
                   onPressed: onSettingsTap,
                   padding: EdgeInsets.zero,
                   visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                   icon: Icon(
                     Icons.settings_outlined,
                     size: 20,

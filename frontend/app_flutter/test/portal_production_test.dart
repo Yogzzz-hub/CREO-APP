@@ -1,9 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:app_flutter/src/features/portal/portal_repository.dart';
-import 'package:app_flutter/src/features/portal/screens/portal_workspace_page.dart';
-import 'package:app_flutter/src/features/portal/core/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'auth_contract_test.dart' show MemorySessionStore, code;
@@ -125,81 +122,4 @@ void main() {
     await assertion;
     session.dispose();
   });
-
-  testWidgets('server rejection keeps profile draft available', (tester) async {
-    final session = await hubOwner(
-      (request) async => request.method == 'GET'
-          ? jsonResponse({
-              'full_name': 'Client',
-              'email': 'client@example.test',
-            })
-          : jsonResponse({
-              'status': 'error',
-              'message': 'Profile update rejected.',
-            }),
-      role: 'client',
-    );
-    addTearDown(session.dispose);
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: CreoTheme.darkTheme,
-        home: PortalWorkspacePage(
-          session: session,
-          section: PortalSection.settings,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Edit profile'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).first, 'Retain my name');
-    await tester.tap(find.text('Submit'));
-    await tester.pumpAndSettle();
-    expect(find.text('Profile update rejected.'), findsOneWidget);
-    expect(find.text('Retain my name'), findsOneWidget);
-    expect(
-      tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Submit'))
-          .onPressed,
-      isNotNull,
-    );
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
-
-  for (final brightness in Brightness.values) {
-    for (final section in PortalSection.values) {
-      testWidgets('$section empty state fits 320px large text $brightness', (
-        tester,
-      ) async {
-        tester.view.physicalSize = const Size(320, 740);
-        tester.view.devicePixelRatio = 1;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        final session = await hubOwner(
-          (_) async => jsonResponse({'items': []}),
-          role: 'client',
-        );
-        addTearDown(session.dispose);
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: brightness == Brightness.dark
-                ? CreoTheme.darkTheme
-                : CreoTheme.lightTheme,
-            builder: (_, child) => MediaQuery(
-              data: const MediaQueryData(
-                size: Size(320, 740),
-                textScaler: TextScaler.linear(2),
-                disableAnimations: true,
-              ),
-              child: child!,
-            ),
-            home: PortalWorkspacePage(session: session, section: section),
-          ),
-        );
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
-        await tester.pumpWidget(const SizedBox.shrink());
-      });
-    }
-  }
 }

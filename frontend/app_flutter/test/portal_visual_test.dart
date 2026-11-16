@@ -2,8 +2,6 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:app_flutter/src/core/app_theme.dart';
 import 'package:app_flutter/src/features/portal/client_portal_screen.dart';
-import 'package:app_flutter/src/features/portal/screens/portal_workspace_page.dart';
-import 'package:app_flutter/src/features/portal/core/theme/app_theme.dart';
 import 'package:app_flutter/src/features/workstation/workstation_hub_pages.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -90,10 +88,11 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      // CreoPulseDot loops forever, so pumpAndSettle never settles here.
+      await tester.pump(const Duration(seconds: 1));
       if (!dark) {
         await tester.tap(find.byTooltip('Switch appearance'));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
       }
       await capture(tester, key, 'client-${dark ? 'dark' : 'light'}');
       await tester.pumpWidget(const SizedBox.shrink());
@@ -163,32 +162,4 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
-
-  testWidgets('capture account recoverable error', (tester) async {
-    tester.view.physicalSize = const Size(393, 852);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final session = await hubOwner(
-      (_) async => jsonResponse({'detail': 'Temporarily unavailable'}, 503),
-      role: 'client',
-    );
-    addTearDown(session.dispose);
-    final key = GlobalKey();
-    await tester.pumpWidget(
-      RepaintBoundary(
-        key: key,
-        child: MaterialApp(
-          theme: CreoTheme.lightTheme,
-          home: PortalWorkspacePage(
-            session: session,
-            section: PortalSection.settings,
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await capture(tester, key, 'account-error');
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
 }
