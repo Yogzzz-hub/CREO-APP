@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'workstation_hub_test.dart' show hubOwner;
+import 'client_portal_access_test.dart' show readyPortalResponse;
 import 'session_lifecycle_test.dart' show jsonResponse;
 
 // Isolated fixture rendering. These identities and responses are test-only.
@@ -44,38 +45,41 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       final session = await hubOwner(
-        (request) async => jsonResponse(
-          request.url.path.endsWith('/deliverables')
-              ? {'items': []}
-              : {
-                  'pending_deliverable_count': 3,
-                  'open_ticket_count': 1,
-                  'ai_summary_line': 'Thoughtful creative for Harbour Studio.',
-                  'active_plan': {
-                    'name': 'Growth',
-                    'current_period_end': '2030-06-01T00:00:00Z',
-                  },
-                  'quotas': {
-                    'reel': {'quota': 8, 'used': 3},
-                    'static_post': {'quota': 12, 'used': 5},
-                    'story': {'quota': 10, 'used': 2},
-                  },
-                  'assigned_team': [
-                    {
-                      'id': 'team',
-                      'name': 'Maya Chen',
-                      'raw_role': 'team_lead',
-                      'role': 'Creative lead',
+        (request) async =>
+            readyPortalResponse(request) ??
+            jsonResponse(
+              request.url.path.endsWith('/deliverables')
+                  ? {'items': []}
+                  : {
+                      'pending_deliverable_count': 3,
+                      'open_ticket_count': 1,
+                      'ai_summary_line':
+                          'Thoughtful creative for Harbour Studio.',
+                      'active_plan': {
+                        'name': 'Growth',
+                        'current_period_end': '2030-06-01T00:00:00Z',
+                      },
+                      'quotas': {
+                        'reel': {'quota': 8, 'used': 3},
+                        'static_post': {'quota': 12, 'used': 5},
+                        'story': {'quota': 10, 'used': 2},
+                      },
+                      'assigned_team': [
+                        {
+                          'id': 'team',
+                          'name': 'Maya Chen',
+                          'raw_role': 'team_lead',
+                          'role': 'Creative lead',
+                        },
+                      ],
+                      'recent_activity': [
+                        {
+                          'title': 'Summer launch film v2',
+                          'status': 'pending_approval',
+                        },
+                      ],
                     },
-                  ],
-                  'recent_activity': [
-                    {
-                      'title': 'Summer launch film v2',
-                      'status': 'pending_approval',
-                    },
-                  ],
-                },
-        ),
+            ),
         role: 'client',
       );
       addTearDown(session.dispose);

@@ -3,10 +3,12 @@ import 'package:flutter/foundation.dart';
 import '../../core/auth_session.dart';
 import 'models/dashboard_model.dart';
 import 'models/deliverable_model.dart';
+import 'portal_repository.dart';
 
 class ClientApiService {
   ClientApiService(this.session);
   final AuthSession session;
+  late final _repository = PortalRepository(session);
 
   bool _loading = false;
   bool get isLoading => _loading;
@@ -47,7 +49,7 @@ class ClientApiService {
 
   Future<DashboardData> fetchDashboard() async {
     final generation = session.beginReadGeneration;
-    final result = await session.request('GET', '/api/v1/portal/dashboard');
+    final result = await _repository.read('/api/v1/portal/dashboard');
     if (!session.isCurrent(generation)) throw StateError('Session changed');
     return liveDashboard = DashboardData.fromJson(result);
   }
@@ -61,8 +63,7 @@ class ClientApiService {
       final query = cursor == null
           ? ''
           : '&cursor_id=${Uri.encodeQueryComponent(cursor)}';
-      final result = await session.request(
-        'GET',
+      final result = await _repository.read(
         '/api/v1/portal/deliverables?limit=200$query',
       );
       if (!session.isCurrent(generation)) throw StateError('Session changed');
@@ -91,11 +92,7 @@ class ClientApiService {
 
   /// POST /api/v1/deliverables/{id}/approve
   Future<void> approveDeliverable(String id) async {
-    try {
-      await session.request('POST', '/api/v1/deliverables/$id/approve');
-    } catch (_) {
-      rethrow;
-    }
+    await _repository.approveDeliverable(id);
   }
 
   /// POST /api/v1/deliverables/{id}/request-changes
@@ -103,14 +100,6 @@ class ClientApiService {
     if (feedback.trim().isEmpty) {
       throw ArgumentError('Describe the requested changes.');
     }
-    try {
-      await session.request(
-        'POST',
-        '/api/v1/deliverables/$id/request-changes',
-        body: {'rejection_comment': feedback.trim()},
-      );
-    } catch (_) {
-      rethrow;
-    }
+    await _repository.requestDeliverableChanges(id, feedback.trim());
   }
 }

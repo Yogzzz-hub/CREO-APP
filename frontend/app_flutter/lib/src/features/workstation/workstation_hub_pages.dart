@@ -199,6 +199,21 @@ class _HubState extends _LiveState<WorkstationHubPage> {
   List<WorkspaceRecord> channels = [], contacts = [];
   String query = '', filter = 'All';
   bool _targetOpened = false;
+
+  Future<(List<WorkspaceRecord>, String?)> _loadConversations(
+    String section,
+    Future<List<WorkspaceRecord>> Function() load,
+  ) async {
+    try {
+      return (await load(), null);
+    } catch (err) {
+      return (
+        <WorkspaceRecord>[],
+        '$section could not be loaded. ${_failure(err)}',
+      );
+    }
+  }
+
   @override
   Future<void> reload() async {
     if (loading) return;
@@ -206,17 +221,19 @@ class _HubState extends _LiveState<WorkstationHubPage> {
     setState(() => loading = true);
     try {
       final next = await Future.wait([
-        repository.channels(),
-        repository.contacts(),
+        _loadConversations('Channels', repository.channels),
+        _loadConversations('Direct conversations', repository.contacts),
       ]);
       if (!mounted || run != epoch) return;
       setState(() {
-        channels = next[0];
-        contacts = next[1];
-        error = null;
+        channels = next[0].$1;
+        contacts = next[1].$1;
+        final failures = next.map((section) => section.$2).nonNulls.toList();
+        error = failures.isEmpty ? null : failures.join('\n');
       });
       if (!_targetOpened &&
-          (widget.initialDm != null || widget.initialChannel != null)) {
+          (widget.initialDm != null || widget.initialChannel != null) &&
+          next[widget.initialDm != null ? 1 : 0].$2 == null) {
         _targetOpened = true;
         final direct = widget.initialDm != null;
         final id = widget.initialDm ?? widget.initialChannel;

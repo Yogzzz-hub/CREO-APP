@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:app_flutter/main.dart';
 import 'package:app_flutter/src/core/auth_session.dart';
 import 'package:app_flutter/src/features/portal/client_portal_screen.dart';
-import 'package:app_flutter/src/features/onboarding/client_onboarding_page.dart';
+import 'package:app_flutter/src/features/portal/client_portal_setup_shell.dart';
 import 'package:app_flutter/src/features/team_lead/team_lead_page.dart';
 import 'package:app_flutter/src/features/freelancer/freelancer_workspace_page.dart';
 import 'package:app_flutter/src/features/workstation/workstation_page.dart';
@@ -14,6 +14,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'auth_contract_test.dart' show MemorySessionStore;
+import 'client_portal_access_test.dart' show readyPortalResponse;
 import 'session_lifecycle_test.dart'
     show saved, owner, profile, jsonResponse, FaultyStore;
 
@@ -67,6 +68,7 @@ void main() {
             'stage': 1,
             'stage_name': 'Account verified',
             'next_required_stage': 'terms',
+            'is_complete': false,
           });
         return jsonResponse({'items': []});
       });
@@ -86,13 +88,8 @@ void main() {
         await tester.pumpAndSettle();
       }
       if (role == 'client') {
-        expect(find.byType(ClientPortalScreen), findsOneWidget);
-        expect(find.byType(ClientOnboardingPage), findsNothing);
-        expect(
-          find.text('Resume: Sign the service agreement'),
-          findsOneWidget,
-        );
-        expect(find.text('Call & bargain a custom plan'), findsOneWidget);
+        expect(find.byType(ClientPortalSetupShell), findsOneWidget);
+        expect(find.text('Your Creo workspace'), findsOneWidget);
       } else if (role == 'team_lead') {
         expect(find.byType(TeamLeadPage), findsOneWidget);
       } else if (role == 'freelancer') {
@@ -134,9 +131,11 @@ void main() {
       final me = Completer<http.Response>();
       final session = owner(
         store,
-        (r) async => r.url.path.endsWith('/me')
-            ? me.future
-            : jsonResponse({'status': 'logged_out'}),
+        (r) async =>
+            readyPortalResponse(r) ??
+            (r.url.path.endsWith('/me')
+                ? me.future
+                : jsonResponse({'status': 'logged_out'})),
       );
       await mount(tester, session);
       await tester.pump();
@@ -164,7 +163,9 @@ void main() {
     (tester) async {
       final store = MemorySessionStore()..value = saved();
       var offline = true;
-      final session = owner(store, (_) async {
+      final session = owner(store, (request) async {
+        final access = readyPortalResponse(request);
+        if (access != null) return access;
         if (offline) throw http.ClientException('offline');
         return jsonResponse(profile());
       });
@@ -212,6 +213,8 @@ void main() {
       var requests = 0;
       final next = Completer<http.Response>();
       final session = owner(store, (request) async {
+        final access = readyPortalResponse(request);
+        if (access != null) return access;
         if (!request.url.path.endsWith('/me'))
           return jsonResponse({'items': []});
         return ++requests == 1 ? jsonResponse(profile()) : next.future;
@@ -238,7 +241,11 @@ void main() {
   ) async {
     final store = FaultyStore()..value = saved();
     store.failClear = true;
-    final session = owner(store, (_) async => jsonResponse(profile()));
+    final session = owner(
+      store,
+      (request) async =>
+          readyPortalResponse(request) ?? jsonResponse(profile()),
+    );
     await mount(tester, session);
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
@@ -285,7 +292,11 @@ void main() {
     (tester) async {
       final store = MemorySessionStore()..value = saved();
       final response = Completer<http.Response>();
-      final session = owner(store, (_) => response.future);
+      final session = owner(
+        store,
+        (request) async =>
+            readyPortalResponse(request) ?? await response.future,
+      );
       await mount(tester, session);
       await tester.pump();
       expect(find.text('Checking your session'), findsOneWidget);

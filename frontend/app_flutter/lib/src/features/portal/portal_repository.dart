@@ -47,7 +47,7 @@ class PortalRepository {
     if (session.phase != SessionPhase.authenticated ||
         !session.isCurrent(generation) ||
         session.current?.user.id != accountId ||
-        session.current?.user.role != 'client' ||
+        !{'client', 'client_owner'}.contains(session.current?.user.role) ||
         session.current?.user.mustResetPassword == true) {
       throw const HttpError(
         status: 403,

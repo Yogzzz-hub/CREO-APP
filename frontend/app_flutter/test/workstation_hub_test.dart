@@ -25,6 +25,71 @@ Future<AuthSession> hubOwner(
 }
 
 void main() {
+  for (final role in ['admin', 'super_admin']) {
+    for (final failedSection in ['contacts', 'channels']) {
+      testWidgets(
+        '$role Hub keeps the working section when $failedSection fails and recovers on Retry',
+        (tester) async {
+          var fail = true;
+          final session = await hubOwner((request) async {
+            if (fail && request.url.path.endsWith('/$failedSection')) {
+              return jsonResponse({
+                'detail': 'An unexpected server error occurred.',
+              }, 500);
+            }
+            if (request.url.path.endsWith('/channels')) {
+              return jsonResponse([
+                {'id': 'general', 'label': 'General channel'},
+              ]);
+            }
+            if (request.url.path.endsWith('/contacts')) {
+              return jsonResponse([
+                {'id': 'staff', 'name': 'Staff contact'},
+              ]);
+            }
+            return jsonResponse([]);
+          }, role: role);
+          addTearDown(session.dispose);
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: buildCreoTheme(),
+              home: WorkstationHubPage(session: session),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final workingTitle = failedSection == 'contacts'
+              ? 'General channel'
+              : 'Staff contact';
+          final failedTitle = failedSection == 'contacts'
+              ? 'Staff contact'
+              : 'General channel';
+          expect(find.text(workingTitle), findsOneWidget);
+          expect(find.text(failedTitle), findsNothing);
+          expect(
+            find.textContaining(
+              '${failedSection == 'contacts' ? 'Direct conversations' : 'Channels'} could not be loaded.',
+            ),
+            findsOneWidget,
+          );
+          await tester.ensureVisible(find.text(workingTitle));
+          await tester.tap(find.text(workingTitle));
+          await tester.pumpAndSettle();
+          expect(find.text('Send'), findsOneWidget);
+          await tester.pageBack();
+          await tester.pumpAndSettle();
+          fail = false;
+          await tester.tap(find.text('Retry'));
+          await tester.pumpAndSettle();
+          expect(find.text('General channel'), findsOneWidget);
+          expect(find.text('Staff contact'), findsOneWidget);
+          expect(find.textContaining('could not be loaded.'), findsNothing);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+      );
+    }
+  }
+
   test('chat only reads and sends server-returned conversations', () async {
     final requests = <http.Request>[];
     final session = await hubOwner((request) async {

@@ -7,6 +7,7 @@ import 'package:app_flutter/src/features/portal/client_api_service.dart';
 import 'package:app_flutter/src/features/portal/models/dashboard_model.dart';
 import 'package:app_flutter/src/features/portal/models/deliverable_model.dart';
 import 'auth_contract_test.dart' show MemorySessionStore;
+import 'client_portal_access_test.dart' show readyPortalResponse;
 import 'session_lifecycle_test.dart' show owner, saved, profile, jsonResponse;
 
 void main() {
@@ -45,7 +46,7 @@ void main() {
   testWidgets('client shell renders empty server data on a phone', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(393, 852);
+    tester.view.physicalSize = const Size(320, 852);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -54,6 +55,8 @@ void main() {
       if (request.url.path.endsWith('/auth/me')) {
         return jsonResponse({...profile(), 'role': 'client'});
       }
+      final access = readyPortalResponse(request);
+      if (access != null) return access;
       return jsonResponse(
         request.url.path.endsWith('/deliverables') ? {'items': []} : {},
       );
@@ -63,6 +66,7 @@ void main() {
       MaterialApp(home: ClientPortalScreen(session: session)),
     );
     await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(ClientPortalScreen), findsOneWidget);
     expect(find.text('Good morning'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -138,7 +142,10 @@ void main() {
             '/api/v1/deliverables/asset-a/request-changes',
           );
           expect(jsonDecode(request.body), {'rejection_comment': 'Fix title'});
-          return jsonResponse({'status': 'revision_requested'});
+          return jsonResponse({
+            'status': 'revision_requested',
+            'deliverable_id': 'asset-a',
+          });
         }
         return jsonResponse({
           'items': empty

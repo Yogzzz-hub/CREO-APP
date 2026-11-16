@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/auth_session.dart';
 import '../../core/auth_repository.dart';
 import 'onboarding_repository.dart';
@@ -12,9 +13,11 @@ class ClientOnboardingPage extends StatefulWidget {
     super.key,
     required this.session,
     this.onCompleted,
+    this.onEmailVerified,
   });
   final AuthSession session;
   final VoidCallback? onCompleted;
+  final VoidCallback? onEmailVerified;
   @override
   State<ClientOnboardingPage> createState() => _OnboardingState();
 }
@@ -61,6 +64,7 @@ class _OnboardingState extends State<ClientOnboardingPage> {
           _section = resume;
         }
       });
+      if ((status['stage'] as int) >= 1) widget.onEmailVerified?.call();
     } catch (error) {
       if (mounted) setState(() => _error = _message(error));
     } finally {
@@ -71,6 +75,22 @@ class _OnboardingState extends State<ClientOnboardingPage> {
   String _message(Object error) => error is HttpError
       ? error.message
       : 'Onboarding could not be loaded. Your draft is retained.';
+
+  Future<void> _openWebPayment() async {
+    try {
+      final opened = await launchUrl(
+        Uri.https('creo.yogalakshmibaskar20.workers.dev', '/onboarding', {
+          'step': '3',
+        }),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) throw StateError('Browser unavailable');
+    } catch (_) {
+      if (mounted)
+        setState(() => _error = 'Could not open checkout. Please try again.');
+    }
+  }
+
   Future<void> _perform(Future<Object?> Function() action) async {
     if (_busy) return;
     final generation = widget.session.beginReadGeneration;
@@ -82,9 +102,9 @@ class _OnboardingState extends State<ClientOnboardingPage> {
     try {
       await action();
       if (mounted && widget.session.isCurrent(generation)) {
-        setState(
-          () => _notice = 'Saved on the server. Refresh progress to continue.',
-        );
+        setState(() => _notice = 'Saved on the server.');
+        setState(() => _busy = false);
+        await _load();
       }
     } catch (error) {
       if (mounted && widget.session.isCurrent(generation))
@@ -316,10 +336,21 @@ class _OnboardingState extends State<ClientOnboardingPage> {
                   child: const Text('Accept agreement'),
                 ),
               ],
-              if (next == 'payment')
+              if (next == 'payment') ...[
                 const Text(
                   'Payment setup must be completed through the existing web checkout or verified offline payment process. Mobile Razorpay checkout is not available. Refresh after payment is confirmed.',
                 ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _openWebPayment,
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Continue payment on website'),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Sign in on the website to complete checkout. Return here and refresh saved progress after payment.',
+                ),
+              ],
               if (_questionnaire != null) ...[
                 DropdownButtonFormField<String>(
                   key: ValueKey(_section),

@@ -77,74 +77,86 @@ class HomeDashboardScreen extends StatelessWidget {
 
           // ── Section 1: Needs your decision (hidden until setup is done) ──
           if (setupStage == null) ...[
-          CreoFadeSlide(
-            delay: const Duration(milliseconds: 70),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Needs your decision',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? CreoColors.mist : CreoColors.lightMist,
+            CreoFadeSlide(
+              delay: const Duration(milliseconds: 70),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Needs your decision',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? CreoColors.mist : CreoColors.lightMist,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                // Deliverables waiting review card
-                CreoCard(
-                  onTap: onNavigateToReview,
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: CreoColors.amber.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
+                  // Deliverables waiting review card
+                  CreoCard(
+                    onTap: onNavigateToReview,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: CreoColors.amber.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.assignment_outlined,
+                            color: CreoColors.amber,
+                            size: 20,
+                          ),
                         ),
-                        child: const Icon(Icons.assignment_outlined, color: CreoColors.amber, size: 20),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              data.pendingDeliverableCount == 0 ? 'No drafts to review' : 'Review ${data.pendingDeliverableCount} drafts',
-                              style: TextStyle(
-                                fontFamily: 'Plus Jakarta Sans',
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                data.pendingDeliverableCount == 0
+                                    ? 'No drafts to review'
+                                    : 'Review ${data.pendingDeliverableCount} drafts',
+                                style: TextStyle(
+                                  fontFamily: 'Plus Jakarta Sans',
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark
+                                      ? CreoColors.ivory
+                                      : CreoColors.lightEspresso,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              data.pendingDeliverableCount == 0 ? 'Drafts from your pod will appear here' : 'Awaiting your approval',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 12,
-                                color: isDark ? CreoColors.mist : CreoColors.lightMist,
+                              const SizedBox(height: 2),
+                              Text(
+                                data.pendingDeliverableCount == 0
+                                    ? 'Drafts from your pod will appear here'
+                                    : 'Awaiting your approval',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 12,
+                                  color: isDark
+                                      ? CreoColors.mist
+                                      : CreoColors.lightMist,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        color: CreoColors.amber,
-                        size: 20,
-                      ),
-                    ],
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: CreoColors.amber,
+                          size: 20,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
           ],
 
           // ── Section 2: This week's batch progress ──
@@ -175,66 +187,81 @@ class HomeDashboardScreen extends StatelessWidget {
                     ),
                   )
                 else
-                CreoCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Flexible(
+                  CreoCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Flexible(
                               child: Row(
-                            children: [
-                              const CreoPulseDot(color: AppColors.amber, size: 7),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                  child: Text(
-                                'Ready for your review',
-                                style: TextStyle(
-                                  fontFamily: 'Plus Jakarta Sans',
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
-                                ),
-                              )),
-                            ],
-                          )),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: CreoColors.amber.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              '${data.pendingDeliverableCount} awaiting',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: CreoColors.amber,
+                                children: [
+                                  const CreoPulseDot(
+                                    color: AppColors.amber,
+                                    size: 7,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      'Ready for your review',
+                                      style: TextStyle(
+                                        fontFamily: 'Plus Jakarta Sans',
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: isDark
+                                            ? CreoColors.ivory
+                                            : CreoColors.lightEspresso,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: CreoColors.amber.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '${data.pendingDeliverableCount} awaiting',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: CreoColors.amber,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
 
-                      // 5-Step Pipeline Indicator
-                      Row(
-                        children: [
-                          _buildStepBar(context, 'Brief', true),
-                          const SizedBox(width: 4),
-                          _buildStepBar(context, 'Prod', true),
-                          const SizedBox(width: 4),
-                          _buildStepBar(context, 'QA', true),
-                          const SizedBox(width: 4),
-                          _buildStepBar(context, 'Review', true, isCurrent: true),
-                          const SizedBox(width: 4),
-                          _buildStepBar(context, 'Schedule', false),
-                        ],
-                      ),
-                    ],
+                        // 5-Step Pipeline Indicator
+                        Row(
+                          children: [
+                            _buildStepBar(context, 'Brief', true),
+                            const SizedBox(width: 4),
+                            _buildStepBar(context, 'Prod', true),
+                            const SizedBox(width: 4),
+                            _buildStepBar(context, 'QA', true),
+                            const SizedBox(width: 4),
+                            _buildStepBar(
+                              context,
+                              'Review',
+                              true,
+                              isCurrent: true,
+                            ),
+                            const SizedBox(width: 4),
+                            _buildStepBar(context, 'Schedule', false),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -272,8 +299,10 @@ class HomeDashboardScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        spacing: 12,
+                        runSpacing: 8,
                         children: [
                           Text(
                             'RETAINER QUOTA',
@@ -286,7 +315,9 @@ class HomeDashboardScreen extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            data.renewalDate == null ? 'No renewal date' : 'Renews ${_shortDate(data.renewalDate!)}',
+                            data.renewalDate == null
+                                ? 'No renewal date'
+                                : 'Renews ${_shortDate(data.renewalDate!)}',
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 12,
@@ -310,11 +341,23 @@ class HomeDashboardScreen extends StatelessWidget {
                       const SizedBox(height: 18),
 
                       // Quota Progress Bars with smooth Animated Progression
-                      _buildQuotaRow('Reels (9:16)', data.reelsQuota.used, data.reelsQuota.quota),
+                      _buildQuotaRow(
+                        'Reels (9:16)',
+                        data.reelsQuota.used,
+                        data.reelsQuota.quota,
+                      ),
                       const SizedBox(height: 12),
-                      _buildQuotaRow('Posts (1:1)', data.postersQuota.used, data.postersQuota.quota),
+                      _buildQuotaRow(
+                        'Posts (1:1)',
+                        data.postersQuota.used,
+                        data.postersQuota.quota,
+                      ),
                       const SizedBox(height: 12),
-                      _buildQuotaRow('Stories', data.storiesQuota.used, data.storiesQuota.quota),
+                      _buildQuotaRow(
+                        'Stories',
+                        data.storiesQuota.used,
+                        data.storiesQuota.quota,
+                      ),
 
                       const SizedBox(height: 20),
                       const Divider(color: Colors.black12, height: 1),
@@ -325,17 +368,25 @@ class HomeDashboardScreen extends StatelessWidget {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Buy instant add-on credits',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: CreoColors.onAmber.withValues(alpha: 0.9),
-                                decoration: TextDecoration.underline,
+                            Expanded(
+                              child: Text(
+                                'View plan and billing',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: CreoColors.onAmber.withValues(
+                                    alpha: 0.9,
+                                  ),
+                                  decoration: TextDecoration.underline,
+                                ),
                               ),
                             ),
-                            const Icon(Icons.arrow_forward_rounded, size: 16, color: CreoColors.onAmber),
+                            const Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 16,
+                              color: CreoColors.onAmber,
+                            ),
                           ],
                         ),
                       ),
@@ -353,8 +404,10 @@ class HomeDashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  spacing: 12,
+                  runSpacing: 8,
                   children: [
                     Text(
                       'Coming up · Next 7 days',
@@ -381,7 +434,10 @@ class HomeDashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 CreoCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                   child: Text(
                     setupStage != null
                         ? 'Your 30-day content calendar is generated when setup is complete.'
@@ -408,84 +464,108 @@ class HomeDashboardScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Flexible(
-                        child: Text(
-                      'Your creative pod',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? CreoColors.mist : CreoColors.lightMist,
+                      child: Text(
+                        'Your creative pod',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? CreoColors.mist
+                              : CreoColors.lightMist,
+                        ),
                       ),
-                    )),
-                    InkWell(
-                      onTap: () => CreativePodDetailScreen.show(context, onOpenChat: onNavigateToChat),
-                      child: const Text(
-                        'View Roster & Call Slots →',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.amber),
+                    ),
+                    Flexible(
+                      child: InkWell(
+                        onTap: () => CreativePodDetailScreen.show(
+                          context,
+                          onOpenChat: onNavigateToChat,
+                        ),
+                        child: const Text(
+                          'View Roster & Call Slots →',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.amber,
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 GestureDetector(
-                  onTap: () => CreativePodDetailScreen.show(context, onOpenChat: onNavigateToChat),
+                  onTap: () => CreativePodDetailScreen.show(
+                    context,
+                    onOpenChat: onNavigateToChat,
+                  ),
                   child: CreoCard(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
-                            child: Row(
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: CreoColors.amber.withValues(alpha: 0.2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  _initials(_podLead?.name),
-                                  style: const TextStyle(
-                                    color: CreoColors.amber,
-                                    fontWeight: FontWeight.w900,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: CreoColors.amber.withValues(
+                                    alpha: 0.2,
+                                  ),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    _initials(_podLead?.name),
+                                    style: const TextStyle(
+                                      color: CreoColors.amber,
+                                      fontWeight: FontWeight.w900,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
+                              const SizedBox(width: 14),
+                              Expanded(
                                 child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _podLead?.name ?? 'Pod not assigned yet',
-                                  style: TextStyle(
-                                    fontFamily: 'Plus Jakarta Sans',
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
-                                  ),
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _podLead?.name ?? 'Pod not assigned yet',
+                                      style: TextStyle(
+                                        fontFamily: 'Plus Jakarta Sans',
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: isDark
+                                            ? CreoColors.ivory
+                                            : CreoColors.lightEspresso,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _podLead == null
+                                          ? 'Your team appears here once assigned'
+                                          : '${_podLead!.roleLabel}${_podLead!.podName == null ? '' : ' · ${_podLead!.podName}'}',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 12,
+                                        color: isDark
+                                            ? CreoColors.mist
+                                            : CreoColors.lightMist,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _podLead == null
-                                      ? (setupStage != null
-                                            ? 'Your dedicated creative pod is assigned when setup is complete.'
-                                            : 'Your team appears here once assigned')
-                                      : '${_podLead!.roleLabel}${_podLead!.podName == null ? '' : ' · ${_podLead!.podName}'}',
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 12,
-                                    color: isDark ? CreoColors.mist : CreoColors.lightMist,
-                                  ),
-                                ),
-                              ],
-                            )),
-                          ],
-                        )),
+                              ),
+                            ],
+                          ),
+                        ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: isDark ? Colors.white10 : Colors.black12,
                             borderRadius: BorderRadius.circular(16),
@@ -496,7 +576,9 @@ class HomeDashboardScreen extends StatelessWidget {
                               fontFamily: 'Inter',
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
-                              color: isDark ? CreoColors.ivory : CreoColors.lightEspresso,
+                              color: isDark
+                                  ? CreoColors.ivory
+                                  : CreoColors.lightEspresso,
                             ),
                           ),
                         ),
@@ -516,16 +598,36 @@ class HomeDashboardScreen extends StatelessWidget {
   /// The pod lead, or the first assigned person, or null before a pod is assigned.
   TeamHandler? get _podLead {
     if (data.assignedTeam.isEmpty) return null;
-    return data.assignedTeam.firstWhere((m) => m.role == 'team_lead', orElse: () => data.assignedTeam.first);
+    return data.assignedTeam.firstWhere(
+      (m) => m.role == 'team_lead',
+      orElse: () => data.assignedTeam.first,
+    );
   }
 
   static String _initials(String? name) {
-    final parts = (name ?? '').trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts = (name ?? '')
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '–';
     return parts.take(2).map((p) => p[0].toUpperCase()).join();
   }
 
-  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   static const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   static String _today() {
@@ -538,7 +640,12 @@ class HomeDashboardScreen extends StatelessWidget {
     return d == null ? iso : '${d.day} ${_months[d.month - 1]}';
   }
 
-  Widget _buildStepBar(BuildContext context, String label, bool isDone, {bool isCurrent = false}) {
+  Widget _buildStepBar(
+    BuildContext context,
+    String label,
+    bool isDone, {
+    bool isCurrent = false,
+  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Expanded(
@@ -551,8 +658,10 @@ class HomeDashboardScreen extends StatelessWidget {
               color: isCurrent
                   ? CreoColors.amber
                   : isDone
-                      ? (isDark ? CreoColors.amber.withValues(alpha: 0.5) : CreoColors.amber.withValues(alpha: 0.4))
-                      : (isDark ? Colors.white12 : Colors.black12),
+                  ? (isDark
+                        ? CreoColors.amber.withValues(alpha: 0.5)
+                        : CreoColors.amber.withValues(alpha: 0.4))
+                  : (isDark ? Colors.white12 : Colors.black12),
               borderRadius: BorderRadius.circular(2),
               boxShadow: isCurrent
                   ? [
@@ -572,7 +681,9 @@ class HomeDashboardScreen extends StatelessWidget {
               fontFamily: 'Inter',
               fontSize: 10,
               fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
-              color: isCurrent ? CreoColors.amber : (isDark ? CreoColors.mist : CreoColors.lightMist),
+              color: isCurrent
+                  ? CreoColors.amber
+                  : (isDark ? CreoColors.mist : CreoColors.lightMist),
             ),
           ),
         ],

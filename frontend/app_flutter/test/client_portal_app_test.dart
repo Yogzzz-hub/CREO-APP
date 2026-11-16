@@ -15,15 +15,21 @@ import 'package:app_flutter/src/features/portal/widgets/creo_portal_drawer.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'auth_contract_test.dart' show MemorySessionStore, sessionJson;
-import 'session_lifecycle_test.dart'
-    show owner, saved, profile, jsonResponse, jwt;
+import 'client_portal_access_test.dart' show readyPortalResponse;
+import 'session_lifecycle_test.dart' show owner, jsonResponse, jwt;
 
 void main() {
   for (final role in ['client', 'client_owner']) {
     testWidgets('normal app password login opens $role portal', (tester) async {
       final paths = <String>[];
+      final testAppearance = CreoAppearance(
+        read: () async => null,
+        write: (_) async {},
+      );
       final session = owner(MemorySessionStore(), (request) async {
         paths.add(request.url.path);
+        final access = readyPortalResponse(request);
+        if (access != null) return access;
         if (request.url.path.endsWith('/auth/login')) {
           return jsonResponse({
             ...sessionJson(role: role),
@@ -36,11 +42,7 @@ void main() {
       await tester.pumpWidget(
         CreoApp(
           session: session,
-          // Own instance: the shared one leaks theme between test cases.
-          appearance: CreoAppearance(
-            read: () async => null,
-            write: (_) async {},
-          ),
+          appearance: testAppearance,
           initialRoute: '/portal',
         ),
       );
@@ -111,7 +113,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(entry.value), findsOneWidget);
-        tester.state<NavigatorState>(find.byType(Navigator).last).pop();
+        Navigator.of(tester.element(find.byType(entry.value))).pop();
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(DeliverablesReviewScreen), findsOneWidget);

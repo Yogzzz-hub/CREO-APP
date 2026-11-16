@@ -186,10 +186,14 @@ void main() {
             'must_reset_password': reset,
           });
       expect(
+        DestinationIntent.forUser(user('client', stage: 0)).path,
+        '/onboarding',
+      );
+      expect(DestinationIntent.forUser(user('client')).path, '/portal');
+      expect(
         DestinationIntent.forUser(user('client', stage: 3)).path,
         '/portal',
       );
-      expect(DestinationIntent.forUser(user('client')).path, '/portal');
       expect(DestinationIntent.forUser(user('team_lead')).blocker, isNull);
       expect(
         DestinationIntent.forUser(user('editor', reset: true)).path,

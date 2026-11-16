@@ -20,6 +20,7 @@ class CreoBottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final largeText = MediaQuery.textScalerOf(context).scale(10.5) > 15;
 
     final items = [
       _NavItem(icon: Icons.home_filled, label: 'Home'),
@@ -61,88 +62,110 @@ class CreoBottomNavBar extends StatelessWidget {
           final item = items[index];
           final isSelected = index == currentIndex;
 
-          return CreoPressScale(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onTap(index);
-            },
-            pressedScale: 0.90,
-            child: SizedBox(
-              width: 64,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Animated pill container around the icon for the active tab
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.amber.withValues(alpha: 0.16)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        AnimatedScale(
-                          scale: isSelected ? 1.12 : 1.0,
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOutBack,
-                          child: Icon(
-                            item.icon,
-                            size: 21,
-                            color: isSelected
-                                ? AppColors.amber
-                                : (isDark ? const Color(0xFF8E877F) : AppColors.lightMist),
+          return Semantics(
+            label: item.label,
+            button: true,
+            selected: isSelected,
+            child: CreoPressScale(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onTap(index);
+              },
+              pressedScale: 0.90,
+              child: SizedBox(
+                width: 64,
+                height: largeText ? 64 : null,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Animated pill container around the icon for the active tab
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.amber.withValues(alpha: 0.16)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          AnimatedScale(
+                            scale: isSelected ? 1.12 : 1.0,
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutBack,
+                            child: Icon(
+                              item.icon,
+                              size: 21,
+                              color: isSelected
+                                  ? AppColors.amber
+                                  : (isDark
+                                        ? const Color(0xFF8E877F)
+                                        : AppColors.lightMist),
+                            ),
                           ),
-                        ),
-                        if (item.badgeCount != null && item.badgeCount! > 0)
-                          Positioned(
-                            top: -4,
-                            right: -8,
-                            child: AnimatedScale(
-                              scale: isSelected ? 1.1 : 1.0,
-                              duration: const Duration(milliseconds: 200),
-                              child: Container(
-                                padding: const EdgeInsets.all(2.5),
-                                decoration: const BoxDecoration(
-                                  color: AppColors.terracotta,
-                                  shape: BoxShape.circle,
-                                ),
-                                constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
-                                child: Center(
-                                  child: Text(
-                                    '${item.badgeCount}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 8.5,
-                                      fontWeight: FontWeight.w900,
-                                      height: 1.0,
+                          if (item.badgeCount != null && item.badgeCount! > 0)
+                            Positioned(
+                              top: -4,
+                              right: -8,
+                              child: AnimatedScale(
+                                scale: isSelected ? 1.1 : 1.0,
+                                duration: const Duration(milliseconds: 200),
+                                child: Container(
+                                  padding: const EdgeInsets.all(2.5),
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.terracotta,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 15,
+                                    minHeight: 15,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${item.badgeCount}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.w900,
+                                        height: 1.0,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 3),
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 180),
-                    style: TextStyle(
-                      fontFamily: 'Plus Jakarta Sans',
-                      fontSize: 10.5,
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                      color: isSelected
-                          ? (isDark ? AppColors.ivory : AppColors.lightInk)
-                          : (isDark ? const Color(0xFF7A736B) : AppColors.lightMist),
+                    const SizedBox(height: 3),
+                    AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 180),
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 10.5,
+                        fontWeight: isSelected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                        color: isSelected
+                            ? (isDark ? AppColors.ivory : AppColors.lightInk)
+                            : (isDark
+                                  ? const Color(0xFF7A736B)
+                                  : AppColors.lightMist),
+                      ),
+                      child: Text(
+                        largeText && !isSelected ? '' : item.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    child: Text(item.label),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );

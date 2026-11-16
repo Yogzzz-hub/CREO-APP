@@ -78,8 +78,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   void _saveProfile() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Profile details updated successfully!'),
-        backgroundColor: AppColors.emerald,
+        content: Text(
+          'Profile editing is not connected in this screen yet. Your changes have not been saved.',
+        ),
       ),
     );
   }
@@ -91,7 +92,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       setState(() => _isVerifyingIg = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Instagram Professional connection verified and healthy.'),
+          content: Text(
+            'Instagram Professional connection verified and healthy.',
+          ),
           backgroundColor: AppColors.emerald,
         ),
       );
@@ -124,12 +127,17 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.mist)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.mist),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.terracotta,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
             onPressed: () {
               Navigator.pop(ctx);
@@ -140,7 +148,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 ),
               );
             },
-            child: const Text('Disconnect', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Disconnect',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -186,7 +200,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 labelText: 'Current Password',
                 filled: true,
                 fillColor: isDark ? AppColors.surface : Colors.grey.shade100,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -197,7 +214,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 labelText: 'New Password (min 8 chars)',
                 filled: true,
                 fillColor: isDark ? AppColors.surface : Colors.grey.shade100,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -209,8 +229,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Password updated successfully!'),
-                    backgroundColor: AppColors.emerald,
+                    content: Text(
+                      'Password changes are not connected in this screen yet. Your password has not changed.',
+                    ),
                   ),
                 );
               },
@@ -242,10 +263,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            'Settings',
-            style: Theme.of(context).textTheme.headlineLarge,
-          ),
+          Text('Settings', style: Theme.of(context).textTheme.headlineLarge),
           const SizedBox(height: 20),
 
           // ── User Profile Mini Header Card ──
@@ -277,7 +295,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _fullNameCtrl.text.isEmpty ? 'Your name' : _fullNameCtrl.text,
+                        _fullNameCtrl.text.isEmpty
+                            ? 'Your name'
+                            : _fullNameCtrl.text,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
@@ -286,7 +306,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        _companyCtrl.text.isEmpty ? 'Client account' : _companyCtrl.text,
+                        _companyCtrl.text.isEmpty
+                            ? 'Client account'
+                            : _companyCtrl.text,
                         style: TextStyle(
                           fontSize: 12,
                           color: isDark ? AppColors.mist : AppColors.lightMist,
@@ -296,7 +318,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.emerald.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
@@ -346,22 +371,46 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.auto_awesome_outlined, size: 20, color: AppColors.amber),
-                  title: const Text('Brand DNA & Guidelines', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Palette swatches, voice descriptors & vault', style: TextStyle(fontSize: 11, color: AppColors.mist)),
+                  leading: const Icon(
+                    Icons.auto_awesome_outlined,
+                    size: 20,
+                    color: AppColors.amber,
+                  ),
+                  title: const Text(
+                    'Brand DNA & Guidelines',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: const Text(
+                    'Palette swatches, voice descriptors & vault',
+                    style: TextStyle(fontSize: 11, color: AppColors.mist),
+                  ),
                   trailing: const Icon(Icons.chevron_right, size: 18),
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const Scaffold(body: SafeArea(child: BrandDnaScreen()))),
+                      MaterialPageRoute(
+                        builder: (_) => const Scaffold(
+                          body: SafeArea(child: BrandDnaScreen()),
+                        ),
+                      ),
                     );
                   },
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.credit_card_rounded, size: 20, color: AppColors.amber),
-                  title: const Text('Plan & Billing', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Retainer tier, credits & official invoices', style: TextStyle(fontSize: 11, color: AppColors.mist)),
+                  leading: const Icon(
+                    Icons.credit_card_rounded,
+                    size: 20,
+                    color: AppColors.amber,
+                  ),
+                  title: const Text(
+                    'Plan & Billing',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: const Text(
+                    'Retainer tier, credits & official invoices',
+                    style: TextStyle(fontSize: 11, color: AppColors.mist),
+                  ),
                   trailing: const Icon(Icons.chevron_right, size: 18),
                   onTap: () {
                     Navigator.push(
@@ -372,7 +421,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                             child: PlanAndBillingScreen(
                               onTriggerRazorpayCheckout: () {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Opening Razorpay Payment Sheet...')),
+                                  const SnackBar(
+                                    content: Text(
+                                      'Opening Razorpay Payment Sheet...',
+                                    ),
+                                  ),
                                 );
                               },
                             ),
@@ -384,14 +437,28 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.folder_outlined, size: 20, color: AppColors.amber),
-                  title: const Text('Asset Library', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Approved deliverables & 1-tap download', style: TextStyle(fontSize: 11, color: AppColors.mist)),
+                  leading: const Icon(
+                    Icons.folder_outlined,
+                    size: 20,
+                    color: AppColors.amber,
+                  ),
+                  title: const Text(
+                    'Asset Library',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: const Text(
+                    'Approved deliverables & 1-tap download',
+                    style: TextStyle(fontSize: 11, color: AppColors.mist),
+                  ),
                   trailing: const Icon(Icons.chevron_right, size: 18),
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const Scaffold(body: SafeArea(child: AssetLibraryScreen()))),
+                      MaterialPageRoute(
+                        builder: (_) => const Scaffold(
+                          body: SafeArea(child: AssetLibraryScreen()),
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -421,7 +488,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               ),
               title: Text(
                 isDark ? 'Switch to Light Theme' : 'Switch to Dark Obsidian',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               subtitle: Text(
                 isDark ? 'Obsidian mode active' : 'Paper light mode active',
@@ -479,7 +549,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               labelText: 'Full Name',
               filled: true,
               fillColor: isDark ? AppColors.surface : Colors.grey.shade100,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -490,7 +563,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               labelText: 'Company / Brand Name',
               filled: true,
               fillColor: isDark ? AppColors.surface : Colors.grey.shade100,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -498,7 +574,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           DropdownButtonFormField<String>(
             isExpanded: true,
             initialValue: _selectedIndustry,
-            items: _industries.map((ind) => DropdownMenuItem(value: ind, child: Text(ind))).toList(),
+            items: _industries
+                .map((ind) => DropdownMenuItem(value: ind, child: Text(ind)))
+                .toList(),
             onChanged: (val) {
               if (val != null) setState(() => _selectedIndustry = val);
             },
@@ -506,7 +584,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               labelText: 'Industry Sector',
               filled: true,
               fillColor: isDark ? AppColors.surface : Colors.grey.shade100,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -518,7 +599,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               labelText: 'Primary Work Email',
               filled: true,
               fillColor: isDark ? AppColors.surface : Colors.grey.shade100,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -531,7 +615,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               hintText: '+91 98765 43210',
               filled: true,
               fillColor: isDark ? AppColors.surface : Colors.grey.shade100,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -542,7 +629,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               labelText: 'Brand Website URL',
               filled: true,
               fillColor: isDark ? AppColors.surface : Colors.grey.shade100,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
           const SizedBox(height: 18),
@@ -578,11 +668,19 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [Color(0xFF833AB4), Color(0xFFFD1D1D), Color(0xFFFCB045)],
+                            colors: [
+                              Color(0xFF833AB4),
+                              Color(0xFFFD1D1D),
+                              Color(0xFFFCB045),
+                            ],
                           ),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 22),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          color: Colors.white,
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Column(
@@ -593,7 +691,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
-                              color: isDark ? AppColors.ivory : AppColors.lightInk,
+                              color: isDark
+                                  ? AppColors.ivory
+                                  : AppColors.lightInk,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -601,7 +701,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                             _isIgConnected ? 'Connected' : 'Not Connected',
                             style: TextStyle(
                               fontSize: 12,
-                              color: _isIgConnected ? AppColors.emerald : AppColors.terracotta,
+                              color: _isIgConnected
+                                  ? AppColors.emerald
+                                  : AppColors.terracotta,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -610,7 +712,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     ],
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: _isIgConnected
                           ? AppColors.emerald.withValues(alpha: 0.15)
@@ -622,7 +727,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: _isIgConnected ? AppColors.emerald : AppColors.terracotta,
+                        color: _isIgConnected
+                            ? AppColors.emerald
+                            : AppColors.terracotta,
                       ),
                     ),
                   ),
@@ -641,24 +748,42 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
               if (_isIgConnected) ...[
                 // Permissions checklist
-                _buildPermissionRow('instagram_content_publish', 'Publish Reels & Carousel posts directly', true),
+                _buildPermissionRow(
+                  'instagram_content_publish',
+                  'Publish Reels & Carousel posts directly',
+                  true,
+                ),
                 const SizedBox(height: 6),
-                _buildPermissionRow('pages_show_list', 'Connected to your Facebook Page', true),
+                _buildPermissionRow(
+                  'pages_show_list',
+                  'Connected to your Facebook Page',
+                  true,
+                ),
                 const SizedBox(height: 6),
-                _buildPermissionRow('instagram_manage_insights', 'Track view & engagement analytics for reports', true),
+                _buildPermissionRow(
+                  'instagram_manage_insights',
+                  'Track view & engagement analytics for reports',
+                  true,
+                ),
                 const SizedBox(height: 16),
 
                 // Auto-publish switches
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Auto-publish approved Reels', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  title: const Text(
+                    'Auto-publish approved Reels',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
                   value: _autoPublishReels,
                   activeThumbColor: AppColors.amber,
                   onChanged: (val) => setState(() => _autoPublishReels = val),
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Auto-publish approved Carousel posts', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  title: const Text(
+                    'Auto-publish approved Carousel posts',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
                   value: _autoPublishPosts,
                   activeThumbColor: AppColors.amber,
                   onChanged: (val) => setState(() => _autoPublishPosts = val),
@@ -669,7 +794,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   children: [
                     Expanded(
                       child: CreoPillButton(
-                        label: _isVerifyingIg ? 'Verifying...' : 'Verify Connection',
+                        label: _isVerifyingIg
+                            ? 'Verifying...'
+                            : 'Verify Connection',
                         isPrimary: false,
                         onPressed: _isVerifyingIg ? null : _verifyInstagram,
                       ),
@@ -692,7 +819,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   onPressed: () {
                     // No real Meta sign-in is wired here yet, so never pretend to connect.
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Instagram connection is not available in the app yet')),
+                      const SnackBar(
+                        content: Text(
+                          'Instagram connection is not available in the app yet',
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -761,32 +892,46 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     color: isDark ? AppColors.surface : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.lock_reset_rounded, size: 20, color: AppColors.amber),
+                  child: const Icon(
+                    Icons.lock_reset_rounded,
+                    size: 20,
+                    color: AppColors.amber,
+                  ),
                 ),
-                title: const Text('Account Password', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                subtitle: const Text('Change your login password', style: TextStyle(fontSize: 11, color: AppColors.mist)),
+                title: const Text(
+                  'Account Password',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text(
+                  'Change your login password',
+                  style: TextStyle(fontSize: 11, color: AppColors.mist),
+                ),
                 trailing: TextButton(
                   onPressed: _showChangePasswordModal,
-                  child: const Text('Change', style: TextStyle(color: AppColors.amber, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Change',
+                    style: TextStyle(
+                      color: AppColors.amber,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
               const Divider(height: 20),
 
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Two-Factor Authentication (2FA)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                subtitle: const Text('Require WhatsApp / SMS verification code on login', style: TextStyle(fontSize: 11, color: AppColors.mist)),
+                title: const Text(
+                  'Two-Factor Authentication (2FA)',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text(
+                  'Unavailable: mobile enrollment and login enforcement are not verified.',
+                  style: TextStyle(fontSize: 11, color: AppColors.mist),
+                ),
                 value: _twoFactorEnabled,
                 activeThumbColor: AppColors.amber,
-                onChanged: (val) {
-                  setState(() => _twoFactorEnabled = val);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(val ? '2FA Enabled!' : '2FA Disabled!'),
-                      backgroundColor: val ? AppColors.emerald : AppColors.terracotta,
-                    ),
-                  );
-                },
+                onChanged: null,
               ),
             ],
           ),
@@ -813,10 +958,21 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   TextButton(
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('All other sessions revoked.')),
+                        const SnackBar(
+                          content: Text(
+                            'Remote session management is not connected. No other sessions were revoked.',
+                          ),
+                        ),
                       );
                     },
-                    child: const Text('Revoke others', style: TextStyle(color: AppColors.terracotta, fontSize: 12, fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'Revoke others',
+                      style: TextStyle(
+                        color: AppColors.terracotta,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -834,7 +990,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   child: Row(
                     children: [
                       Icon(
-                        session['device']!.contains('iPhone') || session['device']!.contains('Android')
+                        session['device']!.contains('iPhone') ||
+                                session['device']!.contains('Android')
                             ? Icons.phone_iphone_rounded
                             : Icons.laptop_mac_rounded,
                         size: 24,
@@ -850,19 +1007,31 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                                 Expanded(
                                   child: Text(
                                     session['device']!,
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                                 if (isCurrent)
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: AppColors.emerald.withValues(alpha: 0.2),
+                                      color: AppColors.emerald.withValues(
+                                        alpha: 0.2,
+                                      ),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: const Text(
                                       'Current',
-                                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.emerald),
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.emerald,
+                                      ),
                                     ),
                                   ),
                               ],
@@ -870,7 +1039,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                             const SizedBox(height: 2),
                             Text(
                               '${session['location']!} · ${session['ip']!}',
-                              style: TextStyle(fontSize: 11, color: isDark ? AppColors.mist : AppColors.lightMist),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDark
+                                    ? AppColors.mist
+                                    : AppColors.lightMist,
+                              ),
                             ),
                           ],
                         ),

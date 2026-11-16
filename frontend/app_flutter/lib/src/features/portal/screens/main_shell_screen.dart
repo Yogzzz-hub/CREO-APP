@@ -87,18 +87,18 @@ class _MainShellScreenState extends State<MainShellScreen> {
 
   Future<void> _loadLive() async {
     if (_api == null) return;
-    await _api!.refreshAll(onDone: () {
-      if (mounted) {
-        setState(() {
-          if (_api!.liveDashboard != null) {
-            _dashboardData = _api!.liveDashboard!;
-          }
-          if (_api!.liveDeliverables.isNotEmpty) {
+    await _api!.refreshAll(
+      onDone: () {
+        if (mounted) {
+          setState(() {
+            if (_api!.liveDashboard != null) {
+              _dashboardData = _api!.liveDashboard!;
+            }
             _deliverables = _api!.liveDeliverables;
-          }
-        });
-      }
-    });
+          });
+        }
+      },
+    );
   }
 
   bool get _onboardingIncomplete =>
@@ -134,6 +134,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
       if (_api != null) {
         await _api!.approveDeliverable(item.id);
       }
+      if (!mounted || _api == null) return;
       setState(() {
         _deliverables = _deliverables.map((d) {
           if (d.id == item.id) {
@@ -162,7 +163,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Approved "${item.title}" — Scheduled for dispatch!'),
+            content: Text('Approval confirmed for "${item.title}".'),
             backgroundColor: CreoColors.amber,
           ),
         );
@@ -176,11 +177,15 @@ class _MainShellScreenState extends State<MainShellScreen> {
     }
   }
 
-  Future<void> _handleRequestChanges(DeliverableItem item, String feedback) async {
+  Future<void> _handleRequestChanges(
+    DeliverableItem item,
+    String feedback,
+  ) async {
     try {
       if (_api != null) {
         await _api!.requestChanges(item.id, feedback);
       }
+      if (!mounted || _api == null) return;
       setState(() {
         _deliverables = _deliverables.map((d) {
           if (d.id == item.id) {
@@ -300,7 +305,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 child: PlanAndBillingScreen(
                   onTriggerRazorpayCheckout: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Opening Razorpay Payment Sheet...')),
+                      const SnackBar(
+                        content: Text(
+                          'Mobile checkout is not connected. No payment was started.',
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -361,13 +370,21 @@ class _MainShellScreenState extends State<MainShellScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.amber,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
             onPressed: () {
               Navigator.pop(ctx);
               _signOut();
             },
-            child: const Text('Sign Out', style: TextStyle(color: AppColors.onAmber, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Sign Out',
+              style: TextStyle(
+                color: AppColors.onAmber,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -422,7 +439,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
                     body: PlanAndBillingScreen(
                       onTriggerRazorpayCheckout: () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Opening Razorpay Payment Sheet...')),
+                          const SnackBar(
+                            content: Text(
+                              'Mobile checkout is not connected. No payment was started.',
+                            ),
+                          ),
                         );
                       },
                     ),
@@ -445,7 +466,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
           onOpenTheater: _openTheater,
           onOpenVoiceRecorder: () {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Hold microphone in theater view to record voice note!')),
+              const SnackBar(
+                content: Text(
+                  'Hold microphone in theater view to record voice note!',
+                ),
+              ),
             );
           },
         ),
@@ -456,7 +481,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
         onApprove30DayCampaign: () {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('30-Day Campaign Approved! Production tasks dispatched to pod.'),
+              content: Text(
+                'Campaign approval is not connected in this screen. No approval was submitted.',
+              ),
               backgroundColor: CreoColors.amber,
             ),
           );
@@ -512,21 +539,34 @@ class _MainShellScreenState extends State<MainShellScreen> {
             if (_api?.error != null)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 color: CreoColors.terracotta.withValues(alpha: 0.2),
                 child: Row(
                   children: [
-                    const Icon(Icons.info_outline, size: 16, color: CreoColors.terracotta),
+                    const Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: CreoColors.terracotta,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _api!.error!,
-                        style: const TextStyle(fontSize: 12, color: CreoColors.terracotta),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: CreoColors.terracotta,
+                        ),
                       ),
                     ),
                     TextButton(
                       onPressed: _loadLive,
-                      child: const Text('Retry', style: TextStyle(fontSize: 12, color: CreoColors.amber)),
+                      child: const Text(
+                        'Retry',
+                        style: TextStyle(fontSize: 12, color: CreoColors.amber),
+                      ),
                     ),
                   ],
                 ),
