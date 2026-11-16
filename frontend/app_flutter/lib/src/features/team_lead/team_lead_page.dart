@@ -5,6 +5,7 @@ import '../../core/auth_session.dart';
 import '../workstation/workstation_data.dart';
 import '../workstation/workstation_account_pages.dart';
 import '../workstation/workstation_hub_pages.dart';
+import '../workstation/workstation_meetings_page.dart';
 import 'team_lead_repository.dart';
 import 'team_lead_people_page.dart';
 import 'team_lead_forms.dart';
@@ -268,6 +269,11 @@ class _TeamLeadPageState extends State<TeamLeadPage> {
             onPressed: _loading || _writing ? null : _load,
             icon: const Icon(Icons.refresh),
           ),
+          IconButton(
+            tooltip: 'Sign out',
+            onPressed: _signOut,
+            icon: const Icon(Icons.logout),
+          ),
         ],
       ),
       body: SafeArea(
@@ -484,6 +490,32 @@ class _TeamLeadPageState extends State<TeamLeadPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _signOut() async {
+    final meetingStore = WorkstationMeetingScope.maybeOf(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign out on this device?'),
+        content: const Text(
+          'Your saved session will be cleared on this device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await logoutWorkstationSession(widget.session, store: meetingStore);
+    }
   }
 
   Widget _destination(String title, IconData icon, Widget page) => Card(
