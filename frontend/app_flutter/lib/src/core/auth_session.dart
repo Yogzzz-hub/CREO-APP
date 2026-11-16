@@ -25,10 +25,6 @@ class DestinationIntent {
     if (user.mustResetPassword == true) {
       return const DestinationIntent('/set-mandatory-password');
     }
-    if ((user.role == 'client' || user.role == 'client_owner') &&
-        user.onboardingStage < 8) {
-      return const DestinationIntent('/onboarding');
-    }
     const homes = {
       'client': '/portal',
       'client_owner': '/portal',

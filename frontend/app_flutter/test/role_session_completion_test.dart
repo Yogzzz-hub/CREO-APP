@@ -187,7 +187,7 @@ void main() {
           });
       expect(
         DestinationIntent.forUser(user('client', stage: 3)).path,
-        '/onboarding',
+        '/portal',
       );
       expect(DestinationIntent.forUser(user('client')).path, '/portal');
       expect(DestinationIntent.forUser(user('team_lead')).blocker, isNull);

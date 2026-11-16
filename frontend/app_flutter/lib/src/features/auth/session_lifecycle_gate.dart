@@ -6,7 +6,6 @@ import '../workstation/member_workspace_shell.dart';
 import '../freelancer/freelancer_workspace_page.dart';
 import '../team_lead/team_lead_page.dart';
 import 'mandatory_password_page.dart';
-import '../onboarding/client_onboarding_page.dart';
 import '../admin/creo_admin/admin_shell.dart';
 import '../bde/creo_bde/bde_shell.dart';
 import '../portal/client_portal_screen.dart';
@@ -96,12 +95,6 @@ class _SessionLifecycleGateState extends State<SessionLifecycleGate>
                   onSignOut: () => session.logout(notifyServer: true),
                 );
               } else if (role == 'client' || role == 'client_owner') {
-                if (current.onboardingStage < 8) {
-                  return ClientOnboardingPage(
-                    session: session,
-                    onCompleted: () => unawaited(session.restore()),
-                  );
-                }
                 return ClientPortalScreen(
                   session: session,
                   onSignOut: () => session.logout(notifyServer: true),

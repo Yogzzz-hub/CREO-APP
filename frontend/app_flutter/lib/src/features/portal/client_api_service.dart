@@ -15,6 +15,9 @@ class ClientApiService {
   String? get error => _error;
 
   DashboardData? liveDashboard;
+
+  bool get onboardingComplete =>
+      (session.current?.user.onboardingStage ?? 0) >= 8;
   List<DeliverableItem> liveDeliverables = [];
 
   static List<dynamic> _asList(dynamic res) {
@@ -29,7 +32,10 @@ class ClientApiService {
     _loading = true;
     _error = null;
     try {
-      await Future.wait([fetchDashboard(), fetchDeliverables()]);
+      await Future.wait([
+        fetchDashboard(),
+        if (onboardingComplete) fetchDeliverables(),
+      ]);
     } catch (e) {
       _error =
           'Unable to load workspace. Check connection, onboarding and subscription, then retry.';

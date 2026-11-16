@@ -29,8 +29,9 @@ void main() {
     WidgetTester tester,
     AuthSession session, {
     double scale = 1,
+    Size size = const Size(320, 640),
   }) async {
-    tester.view.physicalSize = const Size(320, 640);
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -39,7 +40,7 @@ void main() {
         key: previewKey,
         child: MediaQuery(
           data: MediaQueryData(
-            size: const Size(320, 640),
+            size: size,
             textScaler: TextScaler.linear(scale),
             disableAnimations: true,
           ),
@@ -69,11 +70,29 @@ void main() {
           });
         return jsonResponse({'items': []});
       });
-      await mount(tester, session);
-      await tester.pumpAndSettle();
+      // The client dashboard is laid out for real fonts; the wide test
+      // surface keeps the test font's wider glyphs from overflowing rows.
+      await mount(
+        tester,
+        session,
+        size: role == 'client' ? const Size(1200, 1600) : const Size(320, 640),
+      );
       if (role == 'client') {
-        expect(find.byType(ClientOnboardingPage), findsOneWidget);
-        expect(find.byType(ClientPortalScreen), findsNothing);
+        // The portal has looping animations, so it never settles.
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pump(const Duration(seconds: 1));
+      } else {
+        await tester.pumpAndSettle();
+      }
+      if (role == 'client') {
+        expect(find.byType(ClientPortalScreen), findsOneWidget);
+        expect(find.byType(ClientOnboardingPage), findsNothing);
+        expect(
+          find.text('Resume: Sign the service agreement'),
+          findsOneWidget,
+        );
+        expect(find.text('Call & bargain a custom plan'), findsOneWidget);
       } else if (role == 'team_lead') {
         expect(find.byType(TeamLeadPage), findsOneWidget);
       } else if (role == 'freelancer') {

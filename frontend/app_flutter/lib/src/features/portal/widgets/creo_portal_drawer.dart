@@ -10,6 +10,7 @@ class CreoPortalDrawer extends StatelessWidget {
   final VoidCallback onSignOut;
   final String? userName;
   final String? userInitials;
+  final bool showOnboarding;
 
   const CreoPortalDrawer({
     super.key,
@@ -20,6 +21,7 @@ class CreoPortalDrawer extends StatelessWidget {
     required this.onSignOut,
     this.userName,
     this.userInitials,
+    this.showOnboarding = false,
   });
 
   @override
@@ -109,6 +111,13 @@ class CreoPortalDrawer extends StatelessWidget {
                   _sectionHeader('OVERVIEW', isDark),
                   const SizedBox(height: 4),
                   _navItem(Icons.grid_view_rounded, 'Dashboard', 'dashboard', isDark),
+                  if (showOnboarding)
+                    _navItem(
+                      Icons.assignment_ind_outlined,
+                      'Complete onboarding',
+                      'onboarding',
+                      isDark,
+                    ),
                   _navItem(
                     Icons.fact_check_outlined,
                     'Review',

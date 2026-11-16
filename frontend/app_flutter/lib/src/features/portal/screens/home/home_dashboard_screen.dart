@@ -4,6 +4,7 @@ import '../../widgets/creo_card.dart';
 import '../../widgets/creo_animations.dart';
 import '../../models/dashboard_model.dart';
 import 'creative_pod_detail_screen.dart';
+import 'setup_progress_card.dart';
 
 class HomeDashboardScreen extends StatelessWidget {
   final DashboardData data;
@@ -12,6 +13,11 @@ class HomeDashboardScreen extends StatelessWidget {
   final VoidCallback onNavigateToChat;
   final VoidCallback onNavigateToBilling;
 
+  /// Onboarding stage (0..7) while setup is incomplete; null once it is done.
+  final int? setupStage;
+  final VoidCallback? onResumeSetup;
+  final VoidCallback? onBookCall;
+
   const HomeDashboardScreen({
     super.key,
     required this.data,
@@ -19,6 +25,9 @@ class HomeDashboardScreen extends StatelessWidget {
     required this.onNavigateToCalendar,
     required this.onNavigateToChat,
     required this.onNavigateToBilling,
+    this.setupStage,
+    this.onResumeSetup,
+    this.onBookCall,
   });
 
   @override
@@ -43,7 +52,9 @@ class HomeDashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${_today()} · ${data.pendingDeliverableCount == 0 ? 'Nothing needs you right now' : '${data.pendingDeliverableCount} things need you'}',
+                  setupStage != null
+                      ? 'Finish setting up and your pod starts on your first batch.'
+                      : '${_today()} · ${data.pendingDeliverableCount == 0 ? 'Nothing needs you right now' : '${data.pendingDeliverableCount} things need you'}',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 13,
@@ -55,7 +66,17 @@ class HomeDashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          // ── Section 1: Needs your decision ──
+          if (setupStage != null) ...[
+            SetupProgressCard(
+              stage: setupStage!,
+              onResume: onResumeSetup ?? () {},
+              onBookCall: onBookCall ?? () {},
+            ),
+            const SizedBox(height: 24),
+          ],
+
+          // ── Section 1: Needs your decision (hidden until setup is done) ──
+          if (setupStage == null) ...[
           CreoFadeSlide(
             delay: const Duration(milliseconds: 70),
             child: Column(
@@ -124,6 +145,7 @@ class HomeDashboardScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
+          ],
 
           // ── Section 2: This week's batch progress ──
           CreoFadeSlide(
@@ -141,6 +163,18 @@ class HomeDashboardScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
+                if (setupStage != null)
+                  CreoCard(
+                    child: Text(
+                      'Starts after setup · Your production pipeline activates once setup is complete. Pieces waiting for your review will show up here.',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 13,
+                        color: isDark ? CreoColors.mist : CreoColors.lightMist,
+                      ),
+                    ),
+                  )
+                else
                 CreoCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,7 +383,9 @@ class HomeDashboardScreen extends StatelessWidget {
                 CreoCard(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   child: Text(
-                    'Nothing scheduled in the next 7 days',
+                    setupStage != null
+                        ? 'Your 30-day content calendar is generated when setup is complete.'
+                        : 'Nothing scheduled in the next 7 days',
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 13,
@@ -434,7 +470,9 @@ class HomeDashboardScreen extends StatelessWidget {
                                 const SizedBox(height: 2),
                                 Text(
                                   _podLead == null
-                                      ? 'Your team appears here once assigned'
+                                      ? (setupStage != null
+                                            ? 'Your dedicated creative pod is assigned when setup is complete.'
+                                            : 'Your team appears here once assigned')
                                       : '${_podLead!.roleLabel}${_podLead!.podName == null ? '' : ' · ${_podLead!.podName}'}',
                                   style: TextStyle(
                                     fontFamily: 'Inter',

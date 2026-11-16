@@ -346,22 +346,9 @@ async def get_portal_dashboard(
     current_stage: int | None = None
     if actor.role == "client":
         target_client_id = actor.client_id or actor.user_id
+        # Clients see the dashboard (empty until onboarding is done) and
+        # open the questionnaire from it; onboarding_stage is in the response.
         current_stage = await get_current_stage(db, target_client_id)
-        if current_stage < 8:
-            # Full status is only needed to describe where to resume
-            from app.services.onboarding_service import get_onboarding_status
-            ob_status = await get_onboarding_status(db, target_client_id, known_stage=current_stage)
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    "code": "ONBOARDING_INCOMPLETE",
-                    "message": "Onboarding must be completed before accessing the client portal.",
-                    "stage": ob_status.stage,
-                    "next_required_stage": ob_status.next_required_stage,
-                    "next_route": ob_status.next_route,
-                    "resume_section": ob_status.resume_section,
-                },
-            )
     else:
         target_client_id = await _staff_target(db, actor, client_id)
 

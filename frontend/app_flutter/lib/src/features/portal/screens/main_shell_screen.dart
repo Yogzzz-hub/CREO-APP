@@ -20,6 +20,8 @@ import 'settings/account_settings_screen.dart';
 import 'support/help_support_screen.dart';
 import '../../../core/auth_session.dart';
 import '../client_api_service.dart';
+import '../../onboarding/client_onboarding_page.dart';
+import 'home/plan_call_sheet.dart';
 
 class MainShellScreen extends StatefulWidget {
   final VoidCallback onToggleTheme;
@@ -97,6 +99,26 @@ class _MainShellScreenState extends State<MainShellScreen> {
         });
       }
     });
+  }
+
+  bool get _onboardingIncomplete =>
+      widget.session != null && _api?.onboardingComplete != true;
+
+  Future<void> _openOnboarding() async {
+    final session = widget.session;
+    if (session == null) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (pageContext) => ClientOnboardingPage(
+          session: session,
+          onCompleted: () => Navigator.pop(pageContext),
+        ),
+      ),
+    );
+    // Progress may have moved even if setup is not finished; refresh the stage.
+    await session.restore();
+    if (mounted) await _loadLive();
   }
 
   void _signOut() {
@@ -254,6 +276,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
           ),
         );
         break;
+      case 'onboarding':
+        _openOnboarding();
+        break;
       case 'brand':
         Navigator.push(
           context,
@@ -380,6 +405,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           child: HomeDashboardScreen(
             data: _dashboardData,
+            setupStage: _onboardingIncomplete
+                ? widget.session!.current?.user.onboardingStage ?? 0
+                : null,
+            onResumeSetup: _openOnboarding,
+            onBookCall: () => showPlanCallSheet(context, widget.session!),
             onNavigateToReview: () => setState(() => _currentTabIndex = 1),
             onNavigateToCalendar: () => setState(() => _currentTabIndex = 2),
             onNavigateToChat: () => setState(() => _currentTabIndex = 3),
@@ -449,6 +479,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
       drawer: CreoPortalDrawer(
         activeItem: _currentActiveDrawerKey,
         pendingReviewCount: pendingCount,
+        showOnboarding: _onboardingIncomplete,
         userName: userName,
         userInitials: userInitials,
         onSelect: _openDrawerNavigation,
