@@ -8,10 +8,15 @@ import 'plan_bargain_modal.dart';
 
 class PlanAndBillingScreen extends StatefulWidget {
   final VoidCallback onTriggerRazorpayCheckout;
+  // Active plan from the dashboard payload; null shows the no-plan state.
+  final String? planName;
+  final String? renewalDate;
 
   const PlanAndBillingScreen({
     super.key,
     required this.onTriggerRazorpayCheckout,
+    this.planName,
+    this.renewalDate,
   });
 
   @override
@@ -22,8 +27,13 @@ class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
   int _selectedSubTab = 0; // 0: Retainer, 1: Add-ons, 2: Invoices
   // No plan until billing data is loaded from the backend.
   bool _isAutoPayActive = false;
-  final String _currentPlan = 'No active plan';
-  final String _renewalDate = '—';
+  String get _currentPlan => widget.planName ?? 'No active plan';
+  String get _renewalDate {
+    final d = DateTime.tryParse(widget.renewalDate ?? '');
+    if (d == null) return '—';
+    const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${d.day} ${m[d.month - 1]} ${d.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -158,7 +168,9 @@ class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Choose a plan to start your content retainer.',
+                widget.planName == null
+                    ? 'Choose a plan to start your content retainer.'
+                    : 'Your content retainer is active.',
                 style: TextStyle(
                   fontSize: 13,
                   color: CreoColors.onAmber.withValues(alpha: 0.85),
@@ -171,15 +183,17 @@ class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'No billing date yet',
+                    widget.planName == null
+                        ? 'No billing date yet'
+                        : 'Renews $_renewalDate',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: CreoColors.onAmber.withValues(alpha: 0.9),
                     ),
                   ),
-                  const Text(
-                    'Not active',
+                  Text(
+                    widget.planName == null ? 'Not active' : 'Active',
                     style: TextStyle(
                       fontSize: 11,
                       color: CreoColors.onAmber,

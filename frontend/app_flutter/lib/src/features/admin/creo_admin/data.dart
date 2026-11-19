@@ -334,8 +334,15 @@ List<String> get podNames => [for (final p in pods) p.name];
 const overloadAt = 20, freeAt = 5, maxLoad = 35;
 int openTasks(String who) =>
     tasks.where((t) => t.who == who && t.stage != Stage.done).length;
+// Freelancers also come back from /admin/teams as staff; list each person once.
 List<(String, int)> get workload => [
-  for (final p in people.where((p) => p.kind != Kind.sales && p.active))
+  for (final p in people.where(
+    (p) =>
+        p.kind != Kind.sales &&
+        p.active &&
+        !(p.kind == Kind.staff &&
+            people.any((f) => f.kind == Kind.freelancer && f.email == p.email)),
+  ))
     (p.name, openTasks(p.name)),
 ]..sort((a, b) => b.$2.compareTo(a.$2));
 List<(String, int)> get overloaded =>

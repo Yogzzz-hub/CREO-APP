@@ -16,7 +16,16 @@ class FreelancerWorkspacePage extends StatefulWidget {
 class _FreelancerWorkspacePageState extends State<FreelancerWorkspacePage> {
   int _tab = 0;
   @override
-  Widget build(BuildContext context) => Scaffold(
+  // Android back on any tab but Work returns to Work instead of closing the app.
+  Widget build(BuildContext context) => PopScope(
+    canPop: _tab == 0,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && _tab != 0) setState(() => _tab = 0);
+    },
+    child: _scaffold(),
+  );
+
+  Widget _scaffold() => Scaffold(
     body: switch (_tab) {
       1 => WorkstationSchedulePage(session: widget.session, freelancer: true),
       2 => WorkstationHubPage(session: widget.session),

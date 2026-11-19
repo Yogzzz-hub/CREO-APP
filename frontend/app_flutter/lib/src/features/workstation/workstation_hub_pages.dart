@@ -1169,7 +1169,7 @@ class _PublishingState extends _LiveState<WorkstationPublishingPage> {
           contentPadding: EdgeInsets.zero,
           title: Text(workspaceText(job['title'], 'Instagram post')),
           subtitle: Text(
-            '${workspaceText(job['client_name'])}\n${_label(workspaceText(job['status']))}\n${workspaceText(job['scheduled_at'], 'No publishing time')}',
+            '${workspaceText(job['client_name'])}\n${_label(workspaceText(job['status']))}\n${_publishTime(job['scheduled_at'])}',
           ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(
@@ -1675,3 +1675,11 @@ Widget _sectionHeading(BuildContext context, String title, int count) =>
         ],
       ),
     );
+
+// Server sends ISO-8601 UTC; show it as local "dd/mm/yyyy hh:mm".
+String _publishTime(Object? value) {
+  final at = DateTime.tryParse(workspaceText(value))?.toLocal();
+  if (at == null) return 'No publishing time';
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(at.day)}/${two(at.month)}/${at.year} ${two(at.hour)}:${two(at.minute)}';
+}

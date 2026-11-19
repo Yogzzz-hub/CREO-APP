@@ -692,7 +692,7 @@ class HomeDashboardScreen extends StatelessWidget {
   }
 
   Widget _buildQuotaRow(String label, int used, int quota) {
-    final progress = (used / quota).clamp(0.0, 1.0);
+    final progress = quota > 0 ? (used / quota).clamp(0.0, 1.0) : 0.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

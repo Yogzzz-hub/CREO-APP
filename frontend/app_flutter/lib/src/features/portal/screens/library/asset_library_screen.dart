@@ -102,7 +102,8 @@ class _AssetLibraryScreenState extends State<AssetLibraryScreen> {
                   ),
                   child: const Center(
                     child: Text(
-                      '92%',
+                      // No approval-rate data from the API yet (was a hard-coded 92%).
+                      '—',
                       style: TextStyle(
                         fontFamily: 'Plus Jakarta Sans',
                         fontSize: 14,

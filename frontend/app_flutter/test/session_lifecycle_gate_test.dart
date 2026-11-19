@@ -104,6 +104,37 @@ void main() {
     });
   }
 
+  testWidgets('system back pops pages opened inside the signed-in workspace', (
+    tester,
+  ) async {
+    final store = MemorySessionStore()..value = saved();
+    final session = owner(store, (request) async {
+      if (request.url.path.endsWith('/auth/me'))
+        return jsonResponse({...profile(), 'role': 'team_lead'});
+      return jsonResponse({'items': []});
+    });
+    await mount(tester, session);
+    await tester.pumpAndSettle();
+    expect(find.byType(TeamLeadPage), findsOneWidget);
+
+    unawaited(
+      Navigator.of(tester.element(find.byType(TeamLeadPage))).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('Detail page')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Detail page'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Detail page'), findsNothing);
+    expect(find.byType(TeamLeadPage), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    session.dispose();
+  });
+
   testWidgets(
     'T09 cold startup never exposes auth/app content before credentials are read',
     (tester) async {

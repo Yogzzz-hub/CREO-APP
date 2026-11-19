@@ -568,6 +568,7 @@ class _FreelancerPageState extends State<FreelancerPage> {
           ),
           if (CreoAppearanceScope.maybeOf(context) != null)
             const CreoThemeToggle(showTooltip: false),
+          const SizedBox(width: 8),
         ],
       ),
       drawer: Drawer(

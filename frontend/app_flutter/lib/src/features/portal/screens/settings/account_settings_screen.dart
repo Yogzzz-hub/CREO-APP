@@ -278,10 +278,17 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     color: AppColors.amber,
                     shape: BoxShape.circle,
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Text(
-                      'AN',
-                      style: TextStyle(
+                      // Initials of the client's name (was hard-coded 'AN').
+                      _fullNameCtrl.text
+                          .trim()
+                          .split(RegExp(r'\s+'))
+                          .where((p) => p.isNotEmpty)
+                          .take(2)
+                          .map((p) => p[0].toUpperCase())
+                          .join(),
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                         color: AppColors.onAmber,
