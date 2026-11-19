@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CREO Admin</title>
+  <style>
+    :root { --bg: #0f1115; --card: #181b22; --text: #e8eaf0; --muted: #8b90a0; --accent: #6c8cff; --err: #ff6b6b; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #262a33; }
+    main { max-width: 960px; margin: 0 auto; padding: 24px; }
+    .card { background: var(--card); border-radius: 10px; padding: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+    .label { color: var(--muted); font-size: 13px; }
+    .value { font-size: 26px; font-weight: 600; margin-top: 6px; }
+    form { max-width: 360px; margin: 60px auto; display: grid; gap: 12px; }
+    input, select, button { padding: 10px 12px; border-radius: 8px; border: 1px solid #2c313c; background: #11141a; color: var(--text); font: inherit; }
+    button { background: var(--accent); border: none; cursor: pointer; font-weight: 600; }
+    .error { color: var(--err); min-height: 1em; }
+    .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>CREO Admin</strong>
+    <button id="logout" class="hidden">Log out</button>
+  </header>
+  <main>
+    <form id="login">
+      <label>API base URL <input id="api" value="http://localhost:8000/api/v1" required /></label>
+      <input id="email" type="email" placeholder="Admin email" required />
+      <input id="password" type="password" placeholder="Password" required />
+      <button type="submit">Sign in</button>
+      <div class="error" id="loginError"></div>
+    </form>
+
+    <section id="dashboard" class="hidden">
+      <div class="toolbar">
+        <select id="timeframe">
+          <option value="7d">Last 7 days</option>
+          <option value="30d" selected>Last 30 days</option>
+          <option value="90d">Last 90 days</option>
+          <option value="365d">Last 365 days</option>
+        </select>
+        <button id="refresh">Refresh</button>
+        <span class="label" id="refreshedAt"></span>
+      </div>
+      <div class="grid">
+        <div class="card"><div class="label">MRR</div><div class="value" id="mrr">—</div></div>
+        <div class="card"><div class="label">Active clients</div><div class="value" id="active">—</div></div>
+        <div class="card"><div class="label">Churned</div><div class="value" id="churned">—</div></div>
+        <div class="card"><div class="label">Avg turnaround (h)</div><div class="value" id="turnaround">—</div></div>
+      </div>
+      <div class="error" id="dashError"></div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const store = sessionStorage;
+
+    function show(loggedIn) {
+      $("login").classList.toggle("hidden", loggedIn);
+      $("dashboard").classList.toggle("hidden", !loggedIn);
+      $("logout").classList.toggle("hidden", !loggedIn);
+    }
+
+    async function loadKpis() {
+      $("dashError").textContent = "";
+      const res = await fetch(`${store.getItem("api")}/admin/kpis?timeframe=${$("timeframe").value}`, {
+        headers: { Authorization: `Bearer ${store.getItem("token")}` },
+      });
+      if (res.status === 401 || res.status === 403) {
+        store.clear();
+        show(false);
+        $("loginError").textContent = "Session expired or not an admin account.";
+        return;
+      }
+      if (!res.ok) { $("dashError").textContent = `Failed to load KPIs (${res.status}).`; return; }
+      const k = await res.json();
+      $("mrr").textContent = k.mrr_formatted;
+      $("active").textContent = k.active_clients;
+      $("churned").textContent = k.churned_last_30d;
+      $("turnaround").textContent = k.avg_turnaround_hours;
+      $("refreshedAt").textContent = `Updated ${new Date(k.refreshed_at).toLocaleString()}`;
+    }
+
+    $("login").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      $("loginError").textContent = "";
+      const api = $("api").value.replace(/\/$/, "");
+      try {
+        const res = await fetch(`${api}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: $("email").value, password: $("password").value }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || data.message || `Login failed (${res.status})`);
+        store.setItem("api", api);
+        store.setItem("token", data.access_token);
+        show(true);
+        loadKpis();
+      } catch (err) {
+        $("loginError").textContent = err.message;
+      }
+    });
+
+    $("refresh").addEventListener("click", loadKpis);
+    $("timeframe").addEventListener("change", loadKpis);
+    $("logout").addEventListener("click", () => { store.clear(); show(false); });
+
+    if (store.getItem("token")) { show(true); loadKpis(); }
+  </script>
+</body>
+</html>
