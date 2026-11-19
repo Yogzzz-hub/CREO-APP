@@ -99,7 +99,8 @@ class DashboardData {
         quotas['poster'] as Map<String, dynamic>? ?? quotas['posters'] as Map<String, dynamic>? ?? quotas['static_post'] as Map<String, dynamic>? ?? {},
       ),
       storiesQuota: QuotaItem.fromJson(
-        quotas['story'] as Map<String, dynamic>? ?? quotas['stories'] as Map<String, dynamic>? ?? {},
+        // Backend counts stories under the carousel quota kind.
+        quotas['story'] as Map<String, dynamic>? ?? quotas['stories'] as Map<String, dynamic>? ?? quotas['carousel'] as Map<String, dynamic>? ?? {},
       ),
       assignedTeam: (json['assigned_team'] as List<dynamic>?)
               ?.map((e) => TeamHandler.fromJson(e as Map<String, dynamic>))

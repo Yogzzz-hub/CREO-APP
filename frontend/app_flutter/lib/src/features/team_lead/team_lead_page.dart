@@ -248,246 +248,255 @@ class _TeamLeadPageState extends State<TeamLeadPage> {
                   .contains(_query.toLowerCase()),
         )
         .toList();
-    return Scaffold(
-      appBar: AppBar(
-        title: const Row(
-          children: [
-            CreoWordmark(),
-            SizedBox(width: 12),
-            Flexible(
-              child: Text(
-                'Team lead',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+    // Android back on any tab but Home returns to Home instead of closing the app.
+    return PopScope(
+      canPop: _tab == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _tab != 0) setState(() => _tab = 0);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Row(
+            children: [
+              CreoWordmark(),
+              SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  'Team lead',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
+            ],
+          ),
+          actions: [
+            IconButton(
+              tooltip: 'Refresh pod',
+              onPressed: _loading || _writing ? null : _load,
+              icon: const Icon(Icons.refresh),
+            ),
+            IconButton(
+              tooltip: 'Sign out',
+              onPressed: _signOut,
+              icon: const Icon(Icons.logout),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh pod',
-            onPressed: _loading || _writing ? null : _load,
-            icon: const Icon(Icons.refresh),
-          ),
-          IconButton(
-            tooltip: 'Sign out',
-            onPressed: _signOut,
-            icon: const Icon(Icons.logout),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: _tab == 4
-            ? ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  _destination(
-                    'Team leave requests',
-                    Icons.fact_check_outlined,
-                    TeamLeadPeoplePage(repository: _repo),
-                  ),
-                  _destination(
-                    'Pod member settings',
-                    Icons.group_outlined,
-                    TeamLeadPeoplePage(repository: _repo, members: true),
-                  ),
-                  _destination(
-                    'Pod support',
-                    Icons.support_agent_outlined,
-                    TeamLeadSupportPage(repository: _repo),
-                  ),
-                  _destination(
-                    'My time off',
-                    Icons.event_busy_outlined,
-                    WorkstationSchedulePage(
-                      session: widget.session,
-                      freelancer: false,
+        body: SafeArea(
+          child: _tab == 4
+              ? ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    _destination(
+                      'Team leave requests',
+                      Icons.fact_check_outlined,
+                      TeamLeadPeoplePage(repository: _repo),
                     ),
-                  ),
-                  _destination(
-                    'Profile & settings',
-                    Icons.person_outline,
-                    WorkstationSettingsPage(
-                      session: widget.session,
-                      freelancer: false,
+                    _destination(
+                      'Pod member settings',
+                      Icons.group_outlined,
+                      TeamLeadPeoplePage(repository: _repo, members: true),
                     ),
-                  ),
-                  _destination(
-                    'Team chat',
-                    Icons.chat_bubble_outline,
-                    WorkstationHubPage(session: widget.session),
-                  ),
-                  _destination(
-                    'Publishing',
-                    Icons.publish_outlined,
-                    WorkstationPublishingPage(session: widget.session),
-                  ),
-                ],
-              )
-            : ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  if (_loading || _writing) const LinearProgressIndicator(),
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Text(
-                        _error!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
+                    _destination(
+                      'Pod support',
+                      Icons.support_agent_outlined,
+                      TeamLeadSupportPage(repository: _repo),
+                    ),
+                    _destination(
+                      'My time off',
+                      Icons.event_busy_outlined,
+                      WorkstationSchedulePage(
+                        session: widget.session,
+                        freelancer: false,
                       ),
                     ),
-                  if (data != null) ...[
-                    Text(
-                      data.podName,
-                      style: Theme.of(context).textTheme.headlineSmall,
+                    _destination(
+                      'Profile & settings',
+                      Icons.person_outline,
+                      WorkstationSettingsPage(
+                        session: widget.session,
+                        freelancer: false,
+                      ),
                     ),
-                    const SizedBox(height: 16),
-                    if (_tab == 0) ...[
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          Chip(
-                            label: Text('${data.inQa.length} awaiting review'),
+                    _destination(
+                      'Team chat',
+                      Icons.chat_bubble_outline,
+                      WorkstationHubPage(session: widget.session),
+                    ),
+                    _destination(
+                      'Publishing',
+                      Icons.publish_outlined,
+                      WorkstationPublishingPage(session: widget.session),
+                    ),
+                  ],
+                )
+              : ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    if (_loading || _writing) const LinearProgressIndicator(),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Text(
+                          _error!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
                           ),
-                          Chip(
-                            label: Text(
-                              '${data.inProduction.length} in production',
-                            ),
-                          ),
-                          Chip(label: Text('${data.clients.length} clients')),
-                        ],
+                        ),
+                      ),
+                    if (data != null) ...[
+                      Text(
+                        data.podName,
+                        style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 16),
-                      Text(
-                        'Your pod',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      for (final member in data.members)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.person_outline),
-                          title: Text(member.name),
-                          subtitle: Text(member.craft),
-                        ),
-                      for (final notice in data.notices)
-                        Card(
-                          child: ListTile(
-                            title: Text(notice.title),
-                            subtitle: Text(notice.message),
-                          ),
-                        ),
-                    ] else if (_tab == 3) ...[
-                      if (data.clients.isEmpty)
-                        const Text('No clients are assigned to this pod.'),
-                      for (final client in data.clients)
-                        Card(
-                          child: ExpansionTile(
-                            title: Text('${client['name'] ?? 'Client'}'),
-                            subtitle: Text(
-                              '${client['brand_summary'] ?? client['email'] ?? ''}',
-                            ),
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: SelectableText(
-                                  '${client['email'] ?? ''}\nInstagram: ${client['instagram'] ?? 'Not connected'}\nBrand DNA: ${client['brand_dna'] ?? 'Not available'}',
-                                ),
+                      if (_tab == 0) ...[
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            Chip(
+                              label: Text(
+                                '${data.inQa.length} awaiting review',
                               ),
-                              for (final quota
-                                  in (client['quota_usage'] as List? ??
-                                      const []))
-                                ListTile(
-                                  title: Text('${quota['kind']}'),
-                                  subtitle: Text(
-                                    '${quota['used']} used · ${quota['remaining']} remaining of ${quota['quota']}',
+                            ),
+                            Chip(
+                              label: Text(
+                                '${data.inProduction.length} in production',
+                              ),
+                            ),
+                            Chip(label: Text('${data.clients.length} clients')),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Your pod',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        for (final member in data.members)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.person_outline),
+                            title: Text(member.name),
+                            subtitle: Text(member.craft),
+                          ),
+                        for (final notice in data.notices)
+                          Card(
+                            child: ListTile(
+                              title: Text(notice.title),
+                              subtitle: Text(notice.message),
+                            ),
+                          ),
+                      ] else if (_tab == 3) ...[
+                        if (data.clients.isEmpty)
+                          const Text('No clients are assigned to this pod.'),
+                        for (final client in data.clients)
+                          Card(
+                            child: ExpansionTile(
+                              title: Text('${client['name'] ?? 'Client'}'),
+                              subtitle: Text(
+                                '${client['brand_summary'] ?? client['email'] ?? ''}',
+                              ),
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: SelectableText(
+                                    '${client['email'] ?? ''}\nInstagram: ${client['instagram'] ?? 'Not connected'}\nBrand DNA:\n${_brandDna(client['brand_dna'])}',
                                   ),
                                 ),
-                            ],
-                          ),
-                        ),
-                    ] else ...[
-                      TextField(
-                        onChanged: (value) => setState(() => _query = value),
-                        decoration: const InputDecoration(
-                          labelText: 'Search tasks, clients or status',
-                          prefixIcon: Icon(Icons.search),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text('${rows.length} tasks'),
-                      if (rows.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Text(
-                            'No matching work. Refresh or change your search.',
-                          ),
-                        ),
-                      for (final task in rows)
-                        Card(
-                          child: ListTile(
-                            title: Text(task.title),
-                            subtitle: Text(
-                              '${task.client}\n${task.status.replaceAll('_', ' ')} · ${task.assigneeName ?? 'Unassigned'}',
+                                for (final quota
+                                    in (client['quota_usage'] as List? ??
+                                        const []))
+                                  ListTile(
+                                    title: Text('${quota['kind']}'),
+                                    subtitle: Text(
+                                      '${quota['used']} used · ${quota['remaining']} remaining of ${quota['quota']}',
+                                    ),
+                                  ),
+                              ],
                             ),
-                            isThreeLine: true,
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: _writing ? null : () => _details(task),
+                          ),
+                      ] else ...[
+                        TextField(
+                          onChanged: (value) => setState(() => _query = value),
+                          decoration: const InputDecoration(
+                            labelText: 'Search tasks, clients or status',
+                            prefixIcon: Icon(Icons.search),
                           ),
                         ),
-                    ],
-                  ] else if (!_loading && _error == null)
-                    const Text('No pod data is available.'),
-                ],
-              ),
-      ),
-      floatingActionButton: _tab == 2 && data != null
-          ? FloatingActionButton.extended(
-              onPressed: _writing || _loading
-                  ? null
-                  : () async {
-                      final created = await Navigator.push<bool>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TeamLeadCreateTaskPage(
-                            repository: _repo,
-                            clients: data.clients,
+                        const SizedBox(height: 16),
+                        Text('${rows.length} tasks'),
+                        if (rows.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Text(
+                              'No matching work. Refresh or change your search.',
+                            ),
                           ),
-                        ),
-                      );
-                      if (created == true && mounted) await _load();
-                    },
-              icon: const Icon(Icons.add),
-              label: const Text('New task'),
-            )
-          : null,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (value) => setState(() {
-          _tab = value;
-          _query = '';
-        }),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.space_dashboard_outlined),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.fact_check_outlined),
-            label: 'Review',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.view_kanban_outlined),
-            label: 'Tasks',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.storefront_outlined),
-            label: 'Clients',
-          ),
-          NavigationDestination(icon: Icon(Icons.menu), label: 'More'),
-        ],
+                        for (final task in rows)
+                          Card(
+                            child: ListTile(
+                              title: Text(task.title),
+                              subtitle: Text(
+                                '${task.client}\n${task.status.replaceAll('_', ' ')} · ${task.assigneeName ?? 'Unassigned'}',
+                              ),
+                              isThreeLine: true,
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: _writing ? null : () => _details(task),
+                            ),
+                          ),
+                      ],
+                    ] else if (!_loading && _error == null)
+                      const Text('No pod data is available.'),
+                  ],
+                ),
+        ),
+        floatingActionButton: _tab == 2 && data != null
+            ? FloatingActionButton.extended(
+                onPressed: _writing || _loading
+                    ? null
+                    : () async {
+                        final created = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => TeamLeadCreateTaskPage(
+                              repository: _repo,
+                              clients: data.clients,
+                            ),
+                          ),
+                        );
+                        if (created == true && mounted) await _load();
+                      },
+                icon: const Icon(Icons.add),
+                label: const Text('New task'),
+              )
+            : null,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _tab,
+          onDestinationSelected: (value) => setState(() {
+            _tab = value;
+            _query = '';
+          }),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.space_dashboard_outlined),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.fact_check_outlined),
+              label: 'Review',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.view_kanban_outlined),
+              label: 'Tasks',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.storefront_outlined),
+              label: 'Clients',
+            ),
+            NavigationDestination(icon: Icon(Icons.menu), label: 'More'),
+          ],
+        ),
       ),
     );
   }
@@ -529,4 +538,17 @@ class _TeamLeadPageState extends State<TeamLeadPage> {
       ),
     ),
   );
+}
+
+// Brand DNA arrives as nested JSON; show one readable line per field.
+String _brandDna(Object? value, [String indent = '']) {
+  if (value == null || (value is Map && value.isEmpty))
+    return '${indent}Not available';
+  if (value is! Map) return '$indent$value';
+  return [
+    for (final e in value.entries)
+      e.value is Map
+          ? '$indent${e.key.toString().replaceAll('_', ' ')}:\n${_brandDna(e.value, '$indent  ')}'
+          : '$indent${e.key.toString().replaceAll('_', ' ')}: ${e.value is List ? (e.value as List).join(', ') : e.value}',
+  ].join('\n');
 }

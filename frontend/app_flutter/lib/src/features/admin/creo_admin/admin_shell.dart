@@ -156,10 +156,17 @@ class _ShellState extends State<Shell> {
     jump++;
   });
 
+  // Android back on any tab but Home returns to Home instead of closing the app.
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: changed,
-    builder: (context, _) => _build(context),
+  Widget build(BuildContext context) => PopScope(
+    canPop: tab == 0,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && tab != 0) go(0);
+    },
+    child: ListenableBuilder(
+      listenable: changed,
+      builder: (context, _) => _build(context),
+    ),
   );
 
   Widget _build(BuildContext context) {

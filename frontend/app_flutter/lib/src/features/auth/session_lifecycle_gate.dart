@@ -68,7 +68,7 @@ class _SessionLifecycleGateState extends State<SessionLifecycleGate>
       ].contains(session.issue?.code);
       final restricted = session.current?.user.mustResetPassword == true;
       if (ready && restricted)
-        return Navigator(
+        return _BackForwardingNavigator(
           key: ValueKey((session, session.current!.user.id, 'password-reset')),
           onGenerateRoute: (_) => MaterialPageRoute<void>(
             builder: (_) => MandatoryPasswordPage(session: session),
@@ -78,7 +78,7 @@ class _SessionLifecycleGateState extends State<SessionLifecycleGate>
         final current = session.current!.user;
         final role = current.role.toLowerCase();
 
-        return Navigator(
+        return _BackForwardingNavigator(
           key: ValueKey((session, current.id, role)),
           onGenerateRoute: (_) => MaterialPageRoute<void>(
             builder: (context) {
@@ -223,4 +223,42 @@ class _SessionLifecycleGateState extends State<SessionLifecycleGate>
       );
     },
   );
+}
+
+/// The signed-in workspace runs in a [Navigator] built above the app's root
+/// navigator (in `MaterialApp.builder`), so the Android back button never
+/// reaches it. Listen for back here so it pops the workspace's own pages (and
+/// runs their PopScopes) before the app is closed.
+class _BackForwardingNavigator extends StatefulWidget {
+  const _BackForwardingNavigator({super.key, required this.onGenerateRoute});
+  final RouteFactory onGenerateRoute;
+
+  @override
+  State<_BackForwardingNavigator> createState() =>
+      _BackForwardingNavigatorState();
+}
+
+class _BackForwardingNavigatorState extends State<_BackForwardingNavigator>
+    with WidgetsBindingObserver {
+  final _navigator = GlobalKey<NavigatorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Future<bool> didPopRoute() async =>
+      await _navigator.currentState?.maybePop() ?? false;
+
+  @override
+  Widget build(BuildContext context) =>
+      Navigator(key: _navigator, onGenerateRoute: widget.onGenerateRoute);
 }

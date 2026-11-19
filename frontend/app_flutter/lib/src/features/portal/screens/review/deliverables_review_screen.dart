@@ -13,6 +13,7 @@ class DeliverablesReviewScreen extends StatefulWidget {
   final Function(DeliverableItem, String) onRequestChanges;
   final Function(DeliverableItem) onOpenTheater;
   final VoidCallback onOpenVoiceRecorder;
+  final ValueChanged<int>? onSubTab;
 
   const DeliverablesReviewScreen({
     super.key,
@@ -21,6 +22,7 @@ class DeliverablesReviewScreen extends StatefulWidget {
     required this.onRequestChanges,
     required this.onOpenTheater,
     required this.onOpenVoiceRecorder,
+    this.onSubTab,
   });
 
   @override
@@ -64,9 +66,7 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
         CreoSegmentedTabs(
           tabs: const ['Review', 'Calendar', 'Library'],
           selectedIndex: 0,
-          onTabSelected: (index) {
-            // Can switch views or handle tabs
-          },
+          onTabSelected: (index) => widget.onSubTab?.call(index),
         ),
         const SizedBox(height: 16),
 

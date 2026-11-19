@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core/theme/app_colors.dart';
 import '../widgets/creo_top_header.dart';
 import '../widgets/creo_bottom_nav.dart';
@@ -240,6 +241,21 @@ class _MainShellScreenState extends State<MainShellScreen> {
     );
   }
 
+  void _openLibrary() => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const Scaffold(
+        appBar: CreoTopHeader(roleSubtitle: 'Asset Library'),
+        body: SafeArea(child: AssetLibraryScreen()),
+      ),
+    ),
+  );
+
+  // Review / Calendar / Library pills shared by the Review and Calendar tabs.
+  void _openContentSubTab(int index) => index == 2
+      ? _openLibrary()
+      : setState(() => _currentTabIndex = index + 1);
+
   void _openDrawerNavigation(String key) {
     Navigator.pop(context); // Close drawer
     setState(() => _activeDrawerKey = key);
@@ -255,15 +271,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
         setState(() => _currentTabIndex = 2);
         break;
       case 'library':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const Scaffold(
-              appBar: CreoTopHeader(roleSubtitle: 'Asset Library'),
-              body: SafeArea(child: AssetLibraryScreen()),
-            ),
-          ),
-        );
+        _openLibrary();
         break;
       case 'chat':
         setState(() {
@@ -303,6 +311,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
               appBar: const CreoTopHeader(roleSubtitle: 'Billing'),
               body: SafeArea(
                 child: PlanAndBillingScreen(
+                  planName: _dashboardData.planName,
+                  renewalDate: _dashboardData.renewalDate,
                   onTriggerRazorpayCheckout: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -437,6 +447,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   builder: (_) => Scaffold(
                     appBar: const CreoTopHeader(roleSubtitle: 'Billing'),
                     body: PlanAndBillingScreen(
+                      planName: _dashboardData.planName,
+                      renewalDate: _dashboardData.renewalDate,
                       onTriggerRazorpayCheckout: () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -460,6 +472,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
         onRefresh: _loadLive,
         color: CreoColors.amber,
         child: DeliverablesReviewScreen(
+          onSubTab: _openContentSubTab,
           deliverables: _deliverables,
           onApprove: _handleApproveDeliverable,
           onRequestChanges: _handleRequestChanges,
@@ -478,6 +491,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
 
       // 2: Content Calendar
       ContentCalendarScreen(
+        onSubTab: _openContentSubTab,
         onApprove30DayCampaign: () {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -501,107 +515,124 @@ class _MainShellScreenState extends State<MainShellScreen> {
       ),
     ];
 
-    return Scaffold(
-      key: _scaffoldKey,
-      drawer: CreoPortalDrawer(
-        activeItem: _currentActiveDrawerKey,
-        pendingReviewCount: pendingCount,
-        showOnboarding: _onboardingIncomplete,
-        userName: userName,
-        userInitials: userInitials,
-        onSelect: _openDrawerNavigation,
-        onThemeToggle: widget.onToggleTheme,
-        onSignOut: () {
-          Navigator.pop(context);
-          _showLogoutConfirmDialog(context);
-        },
-      ),
-      appBar: CreoTopHeader(
-        roleSubtitle: 'Client',
-        userInitials: userInitials,
-        notificationCount: pendingCount,
-        onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-        onThemeToggle: widget.onToggleTheme,
-        onNotificationTap: () => setState(() => _currentTabIndex = 1),
-        onSettingsTap: () => setState(() => _currentTabIndex = 4),
-        onProfileTap: () => setState(() => _currentTabIndex = 4),
-      ),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            if (_api?.isLoading == true)
-              const LinearProgressIndicator(
-                minHeight: 2,
-                color: CreoColors.amber,
-                backgroundColor: CreoColors.obsidian,
-              ),
-            if (_api?.error != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+    // Android back: close the drawer, then return to Home, then leave the app.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+          _scaffoldKey.currentState!.closeDrawer();
+        } else if (_currentTabIndex != 0) {
+          setState(() => _currentTabIndex = 0);
+        } else {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        drawer: CreoPortalDrawer(
+          activeItem: _currentActiveDrawerKey,
+          pendingReviewCount: pendingCount,
+          showOnboarding: _onboardingIncomplete,
+          userName: userName,
+          userInitials: userInitials,
+          onSelect: _openDrawerNavigation,
+          onThemeToggle: widget.onToggleTheme,
+          onSignOut: () {
+            Navigator.pop(context);
+            _showLogoutConfirmDialog(context);
+          },
+        ),
+        appBar: CreoTopHeader(
+          roleSubtitle: 'Client',
+          userInitials: userInitials,
+          notificationCount: pendingCount,
+          onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+          onThemeToggle: widget.onToggleTheme,
+          onNotificationTap: () => setState(() => _currentTabIndex = 1),
+          onSettingsTap: () => setState(() => _currentTabIndex = 4),
+          onProfileTap: () => setState(() => _currentTabIndex = 4),
+        ),
+        body: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              if (_api?.isLoading == true)
+                const LinearProgressIndicator(
+                  minHeight: 2,
+                  color: CreoColors.amber,
+                  backgroundColor: CreoColors.obsidian,
                 ),
-                color: CreoColors.terracotta.withValues(alpha: 0.2),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.info_outline,
-                      size: 16,
-                      color: CreoColors.terracotta,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _api!.error!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: CreoColors.terracotta,
+              if (_api?.error != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  color: CreoColors.terracotta.withValues(alpha: 0.2),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: CreoColors.terracotta,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _api!.error!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: CreoColors.terracotta,
+                          ),
                         ),
                       ),
-                    ),
-                    TextButton(
-                      onPressed: _loadLive,
-                      child: const Text(
-                        'Retry',
-                        style: TextStyle(fontSize: 12, color: CreoColors.amber),
+                      TextButton(
+                        onPressed: _loadLive,
+                        child: const Text(
+                          'Retry',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: CreoColors.amber,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 260),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 0.015),
+                          end: Offset.zero,
+                        ).animate(animation),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: KeyedSubtree(
+                    key: ValueKey<int>(_currentTabIndex),
+                    child: screens[_currentTabIndex],
+                  ),
                 ),
               ),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 260),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.015),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
-                    ),
-                  );
-                },
-                child: KeyedSubtree(
-                  key: ValueKey<int>(_currentTabIndex),
-                  child: screens[_currentTabIndex],
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-      bottomNavigationBar: CreoBottomNavBar(
-        currentIndex: _currentTabIndex,
-        pendingReviewCount: pendingCount,
-        inboxBadgeCount: _dashboardData.openTicketCount,
-        onTap: (index) => setState(() => _currentTabIndex = index),
+        bottomNavigationBar: CreoBottomNavBar(
+          currentIndex: _currentTabIndex,
+          pendingReviewCount: pendingCount,
+          inboxBadgeCount: _dashboardData.openTicketCount,
+          onTap: (index) => setState(() => _currentTabIndex = index),
+        ),
       ),
     );
   }

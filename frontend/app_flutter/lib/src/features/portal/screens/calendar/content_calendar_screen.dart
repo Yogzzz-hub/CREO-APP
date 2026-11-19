@@ -6,10 +6,12 @@ import '../../widgets/creo_segmented_tabs.dart';
 
 class ContentCalendarScreen extends StatefulWidget {
   final VoidCallback onApprove30DayCampaign;
+  final ValueChanged<int>? onSubTab;
 
   const ContentCalendarScreen({
     super.key,
     required this.onApprove30DayCampaign,
+    this.onSubTab,
   });
 
   @override
@@ -49,7 +51,7 @@ class _ContentCalendarScreenState extends State<ContentCalendarScreen> {
           CreoSegmentedTabs(
             tabs: const ['Review', 'Calendar', 'Library'],
             selectedIndex: 1,
-            onTabSelected: (_) {},
+            onTabSelected: (index) => widget.onSubTab?.call(index),
           ),
           const SizedBox(height: 16),
 
