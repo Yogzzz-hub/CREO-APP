@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/headings.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/deliverable_model.dart';
 import '../../widgets/creo_card.dart';
@@ -6,6 +7,16 @@ import '../../widgets/creo_segmented_tabs.dart';
 import '../../widgets/creo_animations.dart';
 import 'deliverable_history_sheet.dart';
 import 'withdraw_deliverable_sheet.dart';
+
+/// "23 Nov, 18:00" in the phone's time zone; a value the server sends that is not a date is shown as is.
+String reviewDateLabel(String? raw) {
+  if (raw == null || raw.isEmpty) return 'Not scheduled';
+  final d = DateTime.tryParse(raw)?.toLocal();
+  if (d == null) return raw;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${d.day} ${months[d.month - 1]}, ${two(d.hour)}:${two(d.minute)}';
+}
 
 class DeliverablesReviewScreen extends StatefulWidget {
   final List<DeliverableItem> deliverables;
@@ -55,7 +66,7 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
         // ── Main Page Title ──
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Text(
+          child: Heading(
             'Content',
             style: Theme.of(context).textTheme.headlineLarge,
           ),
@@ -114,9 +125,18 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
         ),
         const SizedBox(height: 16),
 
-        // ── Deliverables List ──
+        // ── Deliverables List ── one container down to the bottom edge.
         Expanded(
-          child: filteredItems.isEmpty
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isDark ? CreoColors.lineSoft : CreoColors.lightLine,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: filteredItems.isEmpty
               ? Center(
                   child: Text(
                     'No items in this category',
@@ -129,7 +149,7 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
                 )
               : ListView.separated(
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+                  padding: const EdgeInsets.all(12),
                   itemCount: filteredItems.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 14),
                   itemBuilder: (context, index) {
@@ -140,6 +160,7 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
                     );
                   },
                 ),
+          ),
         ),
       ],
     );
@@ -195,7 +216,7 @@ class _DeliverablesReviewScreenState extends State<DeliverablesReviewScreen> {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${item.formatLabel} · v${item.version} · ${item.scheduledDate ?? "Not scheduled"}',
+                      '${item.formatLabel} · v${item.version} · ${reviewDateLabel(item.scheduledDate)}',
                       style: TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 12,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/headings.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/creo_card.dart';
 import '../../widgets/creo_segmented_tabs.dart';
@@ -50,7 +51,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   bool _isVerifyingIg = false;
 
   // Security State
-  bool _twoFactorEnabled = false;
+  final bool _twoFactorEnabled = false;
 
   // Sessions load from the account API; none listed until it is connected.
   final List<Map<String, String>> _activeSessions = [];
@@ -263,7 +264,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Text('Settings', style: Theme.of(context).textTheme.headlineLarge),
+          Heading('Settings', style: Theme.of(context).textTheme.headlineLarge),
           const SizedBox(height: 20),
 
           // ── User Profile Mini Header Card ──
@@ -449,7 +450,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     size: 20,
                     color: AppColors.amber,
                   ),
-                  title: const Text(
+                  title: Heading(
                     'Asset Library',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),

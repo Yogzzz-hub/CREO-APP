@@ -169,10 +169,12 @@ void main() {
         request,
       ) async {
         if (request.url.path.endsWith('/auth/me') ||
-            request.url.path.endsWith('/users/me'))
+            request.url.path.endsWith('/users/me')) {
           return jsonResponse({...profile(), 'role': 'editor'});
-        if (request.url.path.endsWith('/pod-dashboard'))
+        }
+        if (request.url.path.endsWith('/pod-dashboard')) {
           return jsonResponse(pod());
+        }
         return jsonResponse({'items': []});
       });
       await session.restore();

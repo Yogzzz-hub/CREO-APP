@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'auth_repository.dart';
@@ -67,6 +68,9 @@ class SdkAndroidGoogleIdentity implements AndroidGoogleIdentity {
       }
       return code;
     } on GoogleSignInException catch (error) {
+      debugPrint(
+        'GoogleSignInException: ${error.code.name} ${error.description ?? ''}',
+      );
       final cancelled = error.code == GoogleSignInExceptionCode.canceled;
       final configuration =
           error.code == GoogleSignInExceptionCode.clientConfigurationError ||

@@ -52,11 +52,12 @@ class _RevenueState extends State<_Revenue> {
       final done = await saveCsv('creo-invoices.csv', rows.join('\n'));
       if (mounted) toast(context, '$done, ${invoices.length} invoices');
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         toast(
           context,
           'The CSV could not be saved. Choose another location and retry.',
         );
+      }
     }
   }
 
@@ -89,7 +90,7 @@ class _RevenueState extends State<_Revenue> {
     final list =
         invoices
             .where((v) => pick == 0 || v.method == payMethods[pick - 1])
-            .where((v) => matches(q, [v.client, v.scope, '${v.number}']))
+            .where((v) => matches(q, [v.client, v.scope, (v.number)]))
             .toList()
           ..sort((a, b) => b.date.compareTo(a.date));
     final methodTotals = <String, int>{
@@ -204,8 +205,9 @@ class _Plans extends StatelessWidget {
   const _Plans();
 
   Future<void> newProposal(BuildContext context) async {
-    if (clients.isEmpty)
+    if (clients.isEmpty) {
       return toast(context, 'Add a client first (Team, Clients)');
+    }
     final v = await formSheet(context, 'Custom proposal', [
       F('Client', options: clientNames, required: true),
       F(
@@ -216,16 +218,17 @@ class _Plans extends StatelessWidget {
       const F('Proposed rate, ₹ a month', required: true, number: true),
       const F('Scope notes and commitments', lines: 3),
     ], 'Send proposal');
-    if (v == null) return;
+    if (v == null || !context.mounted) return;
     final c = clients.firstWhere((c) => c.name == v['Client']);
     final rate = toInt(
       v.entries.firstWhere((e) => e.key.startsWith('Proposed rate,')).value,
     );
-    if (c.serverId == null)
+    if (c.serverId == null) {
       return toast(
         context,
         'Refresh clients: this client has no server ID for a proposal.',
       );
+    }
     try {
       await currentAdminApi!.createNegotiation({
         'client_id': c.serverId,
@@ -234,7 +237,7 @@ class _Plans extends StatelessWidget {
         'target_topic': v['Target plan'],
         'proposed_rate': rate,
         'proposed_offer':
-            v['Target plan'].toString() + ' at ' + rate.toString(),
+            '${v['Target plan']} at $rate',
         'current_plan': c.plan,
         'target_plan': v['Target plan'],
         'notes': v['Scope notes and commitments'],
@@ -242,11 +245,12 @@ class _Plans extends StatelessWidget {
       });
       if (context.mounted) toast(context, 'Proposal saved on the server.');
     } catch (_) {
-      if (context.mounted)
+      if (context.mounted) {
         toast(
           context,
           'Could not confirm proposal save. Refresh proposals before retrying.',
         );
+      }
     }
   }
 
@@ -259,12 +263,13 @@ class _Plans extends StatelessWidget {
         initial: '${n.proposed}',
       ),
     ], 'Send counter');
-    if (v == null) return;
-    if (n.serverId == null)
+    if (v == null || !context.mounted) return;
+    if (n.serverId == null) {
       return toast(
         context,
         'Refresh proposals: this proposal has no server ID.',
       );
+    }
     final rate = toInt(
       v.entries.firstWhere((e) => e.key.startsWith('New rate,')).value,
     );
@@ -275,31 +280,34 @@ class _Plans extends StatelessWidget {
         'counter_note': '',
       });
     } catch (_) {
-      if (context.mounted)
+      if (context.mounted) {
         toast(
           context,
           'Could not confirm counteroffer. Refresh proposals before retrying.',
         );
+      }
     }
   }
 
   Future<void> act(BuildContext context, Negotiation n, String action) async {
-    if (n.serverId == null)
+    if (n.serverId == null) {
       return toast(
         context,
         'Refresh proposals: this proposal has no server ID.',
       );
+    }
     try {
       await currentAdminApi!.actionNegotiation(n.serverId!, {
         'action': action,
         if (action == 'accept') 'agreed_price': n.proposed,
       });
     } catch (_) {
-      if (context.mounted)
+      if (context.mounted) {
         toast(
           context,
           'Could not confirm proposal update. Refresh before retrying.',
         );
+      }
     }
   }
 

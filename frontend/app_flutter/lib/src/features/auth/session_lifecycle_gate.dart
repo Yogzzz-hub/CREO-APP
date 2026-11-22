@@ -67,13 +67,14 @@ class _SessionLifecycleGateState extends State<SessionLifecycleGate>
         'CACHE_CLEAR_FAILED',
       ].contains(session.issue?.code);
       final restricted = session.current?.user.mustResetPassword == true;
-      if (ready && restricted)
+      if (ready && restricted) {
         return _BackForwardingNavigator(
           key: ValueKey((session, session.current!.user.id, 'password-reset')),
           onGenerateRoute: (_) => MaterialPageRoute<void>(
             builder: (_) => MandatoryPasswordPage(session: session),
           ),
         );
+      }
       if (ready && !restricted && session.current?.user != null) {
         final current = session.current!.user;
         final role = current.role.toLowerCase();

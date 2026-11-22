@@ -17,16 +17,18 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final session = await signedIn((request) async {
         if (request.url.path.endsWith('/status') &&
-            !request.url.path.endsWith('brand-dna/status'))
+            !request.url.path.endsWith('brand-dna/status')) {
           return http.Response(
             '{"stage":3,"stage_name":"Questionnaire","next_required_stage":"questionnaire","resume_section":"b"}',
             200,
           );
-        if (request.url.path.endsWith('/questionnaire'))
+        }
+        if (request.url.path.endsWith('/questionnaire')) {
           return http.Response(
             '{"section_b":{"ideal_customer":"Existing audience"},"core_completed":false}',
             200,
           );
+        }
         return http.Response(
           '{"code":"NOT_FOUND","message":"Not available"}',
           404,

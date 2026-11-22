@@ -445,14 +445,16 @@ class _AuthScreenState extends State<AuthScreen> {
       final user = await _google.signIn();
       if (mounted) _navigateByRole(user);
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         _showError(error, 'Google sign-in could not finish. Please try again.');
+      }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _googlePending = false;
         });
+      }
     }
   }
 

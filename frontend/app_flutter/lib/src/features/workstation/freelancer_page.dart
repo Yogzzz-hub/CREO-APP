@@ -5,6 +5,7 @@ import '../../core/app_appearance.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_repository.dart';
 import '../../core/auth_session.dart';
+import '../../core/headings.dart';
 import 'freelancer_repository.dart';
 import 'workstation_account_pages.dart';
 import 'workstation_files.dart';
@@ -645,8 +646,8 @@ class _FreelancerPageState extends State<FreelancerPage> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
-          child: ListView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: FillScroll(
+            keyboardDismiss: true,
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(20),
             children: [
@@ -656,8 +657,9 @@ class _FreelancerPageState extends State<FreelancerPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
+                      Heading(
                         'Assigned workload',
+                        icon: Icons.work_outline,
                         style: Theme.of(context).textTheme.headlineLarge,
                       ),
                       const SizedBox(height: 8),
@@ -770,7 +772,23 @@ class _FreelancerPageState extends State<FreelancerPage> {
                         const LinearProgressIndicator(
                           semanticsLabel: 'Refreshing assigned work',
                         ),
-                      const SizedBox(height: 12),
+                    ],
+                  ),
+                ),
+              ),
+              // One list container that reaches the bottom edge.
+              Center(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 780),
+                  margin: const EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: context.creo.appLine),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                       if (!_loading && rows.isEmpty)
                         _card(
                           Column(

@@ -256,8 +256,15 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Assignment a'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Assignment a'), findsOneWidget);
       expect(find.text('Milestone fee not provided'), findsOneWidget);
+      await tester.ensureVisible(find.byType(TextField).first);
+      await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).first, 'no match');
       await tester.pump();
       expect(find.text('No matching assignments'), findsOneWidget);
@@ -291,7 +298,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Submit content'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.ensureVisible(find.text('Submit content'));
+      await tester.pumpAndSettle();
       await tester.pumpAndSettle();
       await tester.tap(find.text('Submit content'));
       await tester.pumpAndSettle();

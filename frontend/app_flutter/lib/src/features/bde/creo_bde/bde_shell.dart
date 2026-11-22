@@ -251,11 +251,11 @@ class _ShellState extends State<Shell> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.wifi_off_outlined, size: 16, color: C.rose),
+                    Icon(Icons.error_outline, size: 16, color: C.rose),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Could not reach server – pull down to retry',
+                        '${currentBdeApi?.error ?? 'Could not load the latest data.'} Pull down to retry.',
                         style: inter(13, c: C.rose),
                       ),
                     ),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../../../core/auth_repository.dart' show friendlyError;
 import '../../../core/auth_session.dart';
 import 'data.dart';
 
@@ -101,7 +102,7 @@ class BdeApiService {
         fetchPlans(),
       ]);
     } catch (e) {
-      _error = e.toString();
+      _error = friendlyError(e);
       debugPrint('BDE refresh error: $e');
     } finally {
       _loading = false;
@@ -168,10 +169,8 @@ class BdeApiService {
   Future<Map<String, dynamic>?> fetchMetrics() async {
     try {
       final res = await session.request('GET', '/api/v1/bde/metrics');
-      if (res is Map) {
-        liveMetrics = Map<String, dynamic>.from(res);
-        return liveMetrics;
-      }
+      liveMetrics = Map<String, dynamic>.from(res);
+      return liveMetrics;
     } catch (e) {
       debugPrint('Error fetching BDE metrics: $e');
     }
@@ -233,29 +232,26 @@ class BdeApiService {
       };
 
       final res = await session.request('POST', '/api/v1/bde/leads', body: body);
-      if (res is Map) {
-        final m = Map<String, dynamic>.from(res);
-        final newLead = Lead(
-          id: m['id']?.toString(),
-          name: m['name'] as String? ?? name,
-          company: m['company_name'] as String? ?? company,
-          email: m['email'] as String? ?? (email ?? ''),
-          phone: m['phone'] as String? ?? (phone ?? ''),
-          requirements: m['requirements'] as String? ?? (requirements ?? ''),
-          value: (m['estimated_deal_value'] as num?)?.toInt() ?? (dealValue ?? 0),
-          temp: _mapTemp(m['priority'] as String?),
-          stage: _mapStage(m['status'] as String?),
-          created: DateTime.tryParse(m['created_at']?.toString() ?? '') ?? DateTime.now(),
-        );
+      final m = Map<String, dynamic>.from(res);
+      final newLead = Lead(
+        id: m['id']?.toString(),
+        name: m['name'] as String? ?? name,
+        company: m['company_name'] as String? ?? company,
+        email: m['email'] as String? ?? (email ?? ''),
+        phone: m['phone'] as String? ?? (phone ?? ''),
+        requirements: m['requirements'] as String? ?? (requirements ?? ''),
+        value: (m['estimated_deal_value'] as num?)?.toInt() ?? (dealValue ?? 0),
+        temp: _mapTemp(m['priority'] as String?),
+        stage: _mapStage(m['status'] as String?),
+        created: DateTime.tryParse(m['created_at']?.toString() ?? '') ?? DateTime.now(),
+      );
 
-        save(() => leads.insert(0, newLead));
-        return newLead;
-      }
+      save(() => leads.insert(0, newLead));
+      return newLead;
     } catch (e) {
       debugPrint('Error creating lead: $e');
       rethrow;
     }
-    return null;
   }
 
   /// Update stage on backend via PATCH /api/v1/bde/leads/{id}

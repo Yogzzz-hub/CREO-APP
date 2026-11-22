@@ -36,12 +36,13 @@ class _MandatoryPasswordState extends State<MandatoryPasswordPage> {
         confirmation.clear();
       }
     } catch (failure) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => error = failure is HttpError
               ? failure.message
               : 'Your update could not be confirmed. Try again or sign out and use password recovery.',
         );
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }

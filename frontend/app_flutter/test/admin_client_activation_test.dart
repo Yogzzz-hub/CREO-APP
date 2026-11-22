@@ -35,8 +35,9 @@ void main() {
       final session = owner(MemorySessionStore()..value = saved(), (
         request,
       ) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse({...profile(), 'role': 'admin'});
+        }
         return jsonResponse([
           {
             'client_id': clientId,
@@ -68,8 +69,9 @@ void main() {
       final session = owner(MemorySessionStore()..value = saved(), (
         request,
       ) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse({...profile(), 'role': 'admin'});
+        }
         if (request.method == 'POST') {
           writes++;
           expect(
@@ -133,8 +135,9 @@ void main() {
       final session = owner(MemorySessionStore()..value = saved(), (
         request,
       ) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse({...profile(), 'role': role});
+        }
         if (request.method == 'POST') {
           writes++;
           return jsonResponse({});
@@ -170,8 +173,9 @@ void main() {
     () async {
       var serverActive = false, writes = 0;
       Future<http.Response> transport(http.Request request) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse({...profile(), 'role': 'admin'});
+        }
         if (request.method == 'POST') {
           writes++;
           serverActive = true;
@@ -182,7 +186,7 @@ void main() {
           });
         }
         if (request.url.path.endsWith('/plans')) return jsonResponse(plans);
-        if (request.url.path.endsWith('/clients'))
+        if (request.url.path.endsWith('/clients')) {
           return jsonResponse([
             {
               'client_id': clientId,
@@ -191,6 +195,7 @@ void main() {
               'derived_onboarding_stage': 2,
             },
           ]);
+        }
         return jsonResponse(detail(active: serverActive));
       }
 
@@ -221,8 +226,9 @@ void main() {
         final session = owner(MemorySessionStore()..value = saved(), (
           request,
         ) async {
-          if (request.url.path.endsWith('/auth/me'))
+          if (request.url.path.endsWith('/auth/me')) {
             return jsonResponse({...profile(), 'role': 'admin'});
+          }
           return jsonResponse([
             {
               'client_id': clientId,
@@ -246,8 +252,9 @@ void main() {
       final session = owner(MemorySessionStore()..value = saved(), (
         request,
       ) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse({...profile(), 'role': 'admin'});
+        }
         if (request.method == 'POST') {
           writes++;
           expect(

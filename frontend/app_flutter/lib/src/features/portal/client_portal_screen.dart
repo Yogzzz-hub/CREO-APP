@@ -37,11 +37,12 @@ class _ClientPortalScreenState extends State<ClientPortalScreen> {
   Future<void> _loadAccess() async {
     final session = widget.session;
     final generation = session.beginReadGeneration;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _loadingAccess = true;
         _accessError = null;
       });
+    }
     try {
       if (session.phase != SessionPhase.authenticated ||
           session.current?.user.mustResetPassword == true ||
@@ -72,8 +73,9 @@ class _ClientPortalScreenState extends State<ClientPortalScreen> {
             : 'Your workspace access could not be verified. Please retry.',
       );
     } finally {
-      if (mounted && session.isCurrent(generation))
+      if (mounted && session.isCurrent(generation)) {
         setState(() => _loadingAccess = false);
+      }
     }
   }
 

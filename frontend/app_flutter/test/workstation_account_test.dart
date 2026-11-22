@@ -344,7 +344,13 @@ void main() {
       expect(find.text('Retry'), findsOneWidget);
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Cancel request'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.ensureVisible(find.text('Cancel request'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel request'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Cancel request'));

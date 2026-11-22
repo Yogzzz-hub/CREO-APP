@@ -80,7 +80,7 @@ class _LeadsState extends State<_Leads> {
 
   Widget filter<T>(String label, T? value, List<T> all, String Function(T) name, ValueChanged<T?> set) => Expanded(
         child: DropdownButtonFormField<T?>(
-          value: value,
+          initialValue: value,
           isExpanded: true,
           dropdownColor: C.raised,
           style: inter(15),
@@ -359,7 +359,7 @@ class _BuilderState extends State<_Builder> {
             child: Padding(
               padding: const EdgeInsets.only(top: 12),
               child: DropdownButtonFormField<Billing>(
-                value: l.billing,
+                initialValue: l.billing,
                 isExpanded: true,
                 dropdownColor: C.raised,
                 style: inter(16),
@@ -392,7 +392,7 @@ class _BuilderState extends State<_Builder> {
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: DropdownButtonFormField<Lead>(
-              value: lead,
+              initialValue: lead,
               isExpanded: true,
               dropdownColor: C.raised,
               style: inter(16),

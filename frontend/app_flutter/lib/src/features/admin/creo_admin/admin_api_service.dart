@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../core/auth_session.dart';
-import '../../../core/auth_repository.dart' show HttpError;
+import '../../../core/auth_repository.dart' show HttpError, friendlyError;
 import 'data.dart';
 
 AdminApiService? currentAdminApi;
@@ -49,12 +49,14 @@ class AdminApiService {
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    if (!_sameAccount)
+    if (!_sameAccount) {
       throw StateError(
         'The signed-in account changed. Reopen the admin workspace.',
       );
-    if (_uncertainWrites.contains(key))
+    }
+    if (_uncertainWrites.contains(key)) {
       throw StateError('Refresh the affected list before retrying this save.');
+    }
     if (!_writes.add(key)) {
       throw StateError('That save is already in progress.');
     }
@@ -89,7 +91,7 @@ class AdminApiService {
         fetchTransactions(),
       ]);
     } catch (e) {
-      _error = e.toString();
+      _error = friendlyError(e);
       debugPrint('Admin refresh error: $e');
     } finally {
       _loading = false;
@@ -207,8 +209,9 @@ class AdminApiService {
         t.serverId = item['id']?.toString();
         final date = DateTime.tryParse((item['created_at'] ?? '').toString());
         if (date != null) t.opened = date.toLocal();
-        if ((item['status'] ?? '').toString().toLowerCase() == 'closed')
+        if ((item['status'] ?? '').toString().toLowerCase() == 'closed') {
           t.closedAt = t.opened;
+        }
         serverTickets.add(t);
       }
       save(() {
@@ -265,8 +268,9 @@ class AdminApiService {
     required String name,
     required String phone,
   }) async {
-    if (!_writes.add('profile'))
+    if (!_writes.add('profile')) {
       throw StateError('That save is already in progress.');
+    }
     try {
       await session.updateProfile(fullName: name, phone: phone);
     } finally {
@@ -503,8 +507,9 @@ class AdminApiService {
           _ => Draft.review,
         };
         if (item['description'] is String &&
-            (item['description'] as String).isNotEmpty)
+            (item['description'] as String).isNotEmpty) {
           draft.notes.add(item['description'] as String);
+        }
         parsed.add(draft);
       }
       save(() {
@@ -638,8 +643,9 @@ class AdminApiService {
 
   Future<Map<String, dynamic>> createStaff(Map<String, dynamic> body) async {
     final email = (body['email'] ?? '').toString().toLowerCase();
-    if (team.any((r) => (r['email'] ?? '').toString().toLowerCase() == email))
+    if (team.any((r) => (r['email'] ?? '').toString().toLowerCase() == email)) {
       throw StateError('This email already appears in the team roster.');
+    }
     return _asMap(
       await _writeOnce(
         'create:staff:$email',
@@ -652,8 +658,9 @@ class AdminApiService {
 
   Future<Map<String, dynamic>> createSales(Map<String, dynamic> body) async {
     final email = (body['email'] ?? '').toString().toLowerCase();
-    if (sales.any((r) => (r['email'] ?? '').toString().toLowerCase() == email))
+    if (sales.any((r) => (r['email'] ?? '').toString().toLowerCase() == email)) {
       throw StateError('This email already appears in sales.');
+    }
     return _asMap(
       await _writeOnce(
         'create:sales:$email',
@@ -670,8 +677,9 @@ class AdminApiService {
     final email = (body['email'] ?? '').toString().toLowerCase();
     if (freelancers.any(
       (r) => (r['email'] ?? '').toString().toLowerCase() == email,
-    ))
+    )) {
       throw StateError('This email already appears in freelancers.');
+    }
     return _asMap(
       await _writeOnce(
         'create:freelancer:$email',
@@ -684,8 +692,9 @@ class AdminApiService {
 
   Future<Map<String, dynamic>> createClient(Map<String, dynamic> body) async {
     final email = (body['email'] ?? '').toString().toLowerCase();
-    if (clients.any((r) => r.email.toLowerCase() == email))
+    if (clients.any((r) => r.email.toLowerCase() == email)) {
       throw StateError('This email already appears in clients.');
+    }
     return _asMap(
       await _writeOnce(
         'create:client:$email',

@@ -28,13 +28,14 @@ class TeamLeadRepository {
         leave['is_self'] != false ||
         leave['user_id'] == session.current?.user.id ||
         leave['status'] != 'pending' ||
-        leave[approve ? 'can_approve' : 'can_reject'] != true)
+        leave[approve ? 'can_approve' : 'can_reject'] != true) {
       throw const HttpError(
         status: 403,
         code: 'LEAVE_FORBIDDEN',
         message:
             'Only permitted pending pod-member requests can be reviewed. Your own leave requires another reviewer.',
       );
+    }
     final status = approve ? 'approved' : 'rejected';
     await _write(
       'leave:${leave['id']}',
@@ -55,16 +56,18 @@ class TeamLeadRepository {
   }) async {
     _check();
     if (!members.any((row) => identical(row, member)) ||
-        member['id'] is! String)
+        member['id'] is! String) {
       throw const HttpError(
         status: 403,
         code: 'OUTSIDE_POD',
         message: 'Choose a member from the current pod.',
       );
-    if (capacity < 1 || skills.any((skill) => skill.trim().isEmpty))
+    }
+    if (capacity < 1 || skills.any((skill) => skill.trim().isEmpty)) {
       throw ArgumentError(
         'Enter a positive daily capacity and nonempty skills.',
       );
+    }
     await _write(
       'member:${member['id']}',
       'PATCH',

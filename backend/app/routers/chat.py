@@ -1130,18 +1130,18 @@ async def get_chat_contacts(
         needs_commit = False
         for lead in bde_leads:
             lead_email = (lead.email or "").strip().lower()
-            if lead_email and lead_email in found_emails:
+            # A lead without an email gets a placeholder address; look that up too, or every
+            # load would insert the same placeholder user again and hit the unique constraint.
+            user_email = lead_email or f"prospect_{lead.id}@creo.agency"
+            if user_email in found_emails:
                 continue
 
-            client_u = None
-            if lead_email:
-                client_u = (await db.execute(select(User).where(func.lower(User.email) == lead_email))).scalar_one_or_none()
-                if client_u and not is_super and client_u.agency_id != actor.agency_id:
-                    # That email belongs to another agency's user: never surface or link it here.
-                    continue
+            client_u = (await db.execute(select(User).where(func.lower(User.email) == user_email))).scalar_one_or_none()
+            if client_u and not is_super and client_u.agency_id != actor.agency_id:
+                # That email belongs to another agency's user: never surface or link it here.
+                continue
 
             if not client_u:
-                user_email = lead_email or f"prospect_{lead.id}@creo.agency"
                 client_u = User(
                     agency_id=lead.agency_id or actor.agency_id,
                     auth_id=f"lead_{lead.id}",
@@ -1182,8 +1182,7 @@ async def get_chat_contacts(
                     "is_client": True,
                     "online": True,
                 })
-            if lead_email:
-                found_emails.add(lead_email)
+            found_emails.add(user_email)
 
         if needs_commit:
             await db.commit()

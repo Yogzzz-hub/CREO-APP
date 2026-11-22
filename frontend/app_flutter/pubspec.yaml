@@ -31,8 +31,6 @@ dependencies:
   flutter:
     sdk: flutter
 
-  cupertino_icons: ^1.0.8
-
   # ── Creo auth dependencies ──────────────────────────────────────────────
   http: ^1.2.0                      # HTTP client (mirrors fetch() in React)
   flutter_secure_storage: ^9.2.2    # stores JWT tokens (mirrors sessionStorage)

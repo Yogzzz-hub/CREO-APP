@@ -66,8 +66,9 @@ class _MemberShellState extends State<MemberWorkspaceShell>
   }
 
   Future<void> back() async {
-    if (await (keys[selected].currentState?.maybePop() ?? Future.value(false)))
+    if (await (keys[selected].currentState?.maybePop() ?? Future.value(false))) {
       return;
+    }
     if (selected != 0) {
       select(0);
       return;

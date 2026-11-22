@@ -148,6 +148,107 @@ class HttpError implements Exception {
   String toString() => 'HttpError($status, $code): $message';
 }
 
+/// A message a person can act on, for any error the app catches. Server and
+/// app messages written for people pass through; technical text never does.
+String friendlyError(
+  Object error, {
+  String fallback = 'Something went wrong. Please try again.',
+}) => switch (error) {
+  HttpError(:final message) when !_technical(message) => message,
+  StateError(:final message) when !_technical(message) => message,
+  ArgumentError(:final message)
+      when message is String && !_technical(message) =>
+    message,
+  // ponytail: app-written FormatException texts are full sentences, internal
+  // ones are terse labels ("Unverified response"), so only sentences show.
+  FormatException(:final message)
+      when message.endsWith('.') && !_technical(message) =>
+    message,
+  TimeoutException() => 'This is taking too long. Please try again.',
+  _ => fallback,
+};
+
+/// Text that reads like a stack trace, framework default or raw status line.
+bool _technical(String text) {
+  final t = text.trim();
+  if (t.isEmpty || t.length > 300) return true;
+  const generic = {
+    'not found',
+    'forbidden',
+    'unauthorized',
+    'bad request',
+    'internal server error',
+    'method not allowed',
+    'unprocessable entity',
+    'not authenticated',
+    'authentication required',
+    'could not validate credentials',
+    'an unexpected server error occurred.',
+    'unknown error',
+    'session changed',
+  };
+  if (generic.contains(t.toLowerCase())) return true;
+  return RegExp(
+    r'^HTTP \d|Exception|Error:|Traceback|sqlalchemy|psycopg|asyncpg|NoneType|'
+    r'KeyError|TypeError|violates|constraint|null value|duplicate key|'
+    r'[{}<>]|\bat line\b|\.py\b|\.dart\b',
+  ).hasMatch(t);
+}
+
+/// Plain-language text for a failed response, by status, used whenever the
+/// server's own message is missing or technical.
+String _statusMessage(int status) => switch (status) {
+  400 => "That request couldn't be completed. Check the details and try again.",
+  401 => 'Your session has ended. Please sign in again.',
+  403 => "You don't have permission to do that.",
+  404 => "We couldn't find that. It may have been moved or deleted.",
+  408 || 504 => 'This is taking too long. Please try again.',
+  409 => 'This was changed by someone else. Refresh and try again.',
+  413 => 'That file is too large to upload.',
+  422 => 'Some details are missing or invalid. Check the form and try again.',
+  429 => 'Too many attempts. Please wait a moment before trying again.',
+  >= 500 => 'Something went wrong on our side. Please try again in a moment.',
+  _ => "That request couldn't be completed. Please try again.",
+};
+
+/// "email: value is not a valid email address" becomes
+/// "Email: enter a valid email address".
+String? _validationMessage(Object? errors) {
+  if (errors is! List || errors.isEmpty) return null;
+  final lines = <String>{};
+  for (final e in errors.whereType<Map>()) {
+    final loc = (e['loc'] is List ? e['loc'] as List : const [])
+        .where((v) => v != 'body' && v is! int)
+        .map((v) => '$v')
+        .toList();
+    final field = loc.isEmpty
+        ? ''
+        : loc.last
+              .replaceAll('_', ' ')
+              .replaceFirstMapped(RegExp(r'^\w'), (m) => m[0]!.toUpperCase());
+    var msg = '${e['msg'] ?? ''}'.replaceFirst(RegExp(r'^Value error, '), '');
+    final type = '${e['type'] ?? ''}';
+    final ctx = e['ctx'] is Map ? e['ctx'] as Map : const {};
+    if (type == 'missing') {
+      msg = 'is required';
+    } else if (msg.contains('valid email')) {
+      msg = 'enter a valid email address';
+    } else if (type == 'string_too_short') {
+      msg = 'must be at least ${ctx['min_length']} characters';
+    } else if (type == 'string_too_long') {
+      msg = 'must be at most ${ctx['max_length']} characters';
+    } else if (type.startsWith('greater_than') ||
+        type.startsWith('less_than')) {
+      msg = 'is out of range';
+    } else if (type.endsWith('_parsing') || type.endsWith('_type')) {
+      msg = 'has an invalid value';
+    }
+    if (_technical(msg)) msg = 'has an invalid value';
+    lines.add(field.isEmpty ? msg : '$field: $msg');
+  }
+  return lines.isEmpty ? null : lines.join('\n');
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Repository
 // ─────────────────────────────────────────────────────────────────────────────
@@ -262,21 +363,27 @@ class AuthRepository {
     } catch (_) {}
     return {
       'code': res.statusCode == 429 ? 'RATE_LIMITED' : 'HTTP_ERROR',
-      'message': res.statusCode == 429
-          ? 'Too many attempts. Please wait before trying again.'
-          : res.statusCode >= 500
-          ? 'The server could not complete sign-in. Please try again.'
-          : 'HTTP ${res.statusCode}: ${res.reasonPhrase ?? 'Request failed'}',
+      'message': _statusMessage(res.statusCode),
     };
   }
 
   void _throwIfError(http.Response res) {
     if (res.statusCode >= 200 && res.statusCode < 300) return;
     final e = _parseError(res);
+    final details = e['details'];
+    final raw = e['message'] is String ? e['message'] as String : '';
+    // Field-level validation reads better than the joined server text.
+    final message =
+        (e['code'] == 'VALIDATION_ERROR'
+            ? _validationMessage(
+                details is Map ? details['errors'] ?? details['fields'] : null,
+              )
+            : null) ??
+        (_technical(raw) ? _statusMessage(res.statusCode) : raw);
     throw HttpError(
       status: res.statusCode,
       code: e['code'] as String? ?? 'HTTP_ERROR',
-      message: e['message'] as String? ?? 'Unknown error',
+      message: message,
       details: e['details'] is Map<String, dynamic>
           ? e['details'] as Map<String, dynamic>
           : e,
@@ -334,8 +441,9 @@ class AuthRepository {
                     : timeout),
           );
       _throwIfError(response);
-      if (binaryResponse)
+      if (binaryResponse) {
         return {'bytes': response.bodyBytes, 'headers': response.headers};
+      }
       if (response.statusCode == 204 ||
           response.statusCode == 205 ||
           response.body.isEmpty) {
@@ -511,18 +619,20 @@ class AuthRepository {
   ]) async {
     final callback = callbackUrl?.trim();
     if (codeChallenge != null &&
-        !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(codeChallenge))
+        !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(codeChallenge)) {
       throw const HttpError(
         status: 0,
         code: 'GOOGLE_CONFIGURATION_ERROR',
         message: 'A secure Google authorization request could not be created.',
       );
-    if (callback != null && callback.isNotEmpty && !_secureCallback(callback))
+    }
+    if (callback != null && callback.isNotEmpty && !_secureCallback(callback)) {
       throw const HttpError(
         status: 0,
         code: 'GOOGLE_CONFIGURATION_ERROR',
         message: 'Google sign-in needs a valid registered HTTPS callback.',
       );
+    }
     final query = <String, String>{
       if (callback != null && callback.isNotEmpty) 'redirect_uri': callback,
       if (codeChallenge != null) 'code_challenge': codeChallenge,
@@ -541,13 +651,14 @@ class AuthRepository {
     if (codeChallenge != null &&
         (result['pkce_supported'] != true ||
             uri?.queryParameters['code_challenge'] != codeChallenge ||
-            uri?.queryParameters['code_challenge_method'] != 'S256'))
+            uri?.queryParameters['code_challenge_method'] != 'S256')) {
       throw const HttpError(
         status: 0,
         code: 'GOOGLE_MOBILE_NOT_READY',
         message:
             'Google mobile sign-in needs the compatible server update. Please use email sign-in until it is deployed.',
       );
+    }
     if (uri == null ||
         uri.scheme != 'https' ||
         uri.host != 'accounts.google.com' ||
@@ -562,13 +673,14 @@ class AuthRepository {
         !_secureCallback(uri.queryParameters['redirect_uri'] ?? '') ||
         (callback != null &&
             callback.isNotEmpty &&
-            uri.queryParameters['redirect_uri'] != callback))
+            uri.queryParameters['redirect_uri'] != callback)) {
       throw const HttpError(
         status: 0,
         code: 'GOOGLE_CONFIGURATION_ERROR',
         message:
             'Google sign-in configuration could not be verified. Please contact your administrator.',
       );
+    }
     return value as String;
   }
 
@@ -587,8 +699,9 @@ class AuthRepository {
       if (session.accessToken.isEmpty ||
           session.user.id.isEmpty ||
           session.user.email.isEmpty ||
-          session.user.role.isEmpty)
+          session.user.role.isEmpty) {
         throw const FormatException('Incomplete Google session');
+      }
       return session;
     } on HttpError {
       rethrow;

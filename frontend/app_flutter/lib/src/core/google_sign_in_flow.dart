@@ -114,19 +114,22 @@ class GoogleSignInFlow implements GoogleAuthFlow {
     if (generation != null && !session.isCurrent(generation)) cancel();
   }
 
+  @override
   Future<AuthUser> signIn() async {
-    if (_starting || _pending != null)
+    if (_starting || _pending != null) {
       throw const HttpError(
         status: 0,
         code: 'REQUEST_PENDING',
         message: 'Google sign-in is already in progress.',
       );
-    if (_disposed || session.current != null)
+    }
+    if (_disposed || session.current != null) {
       throw const HttpError(
         status: 0,
         code: 'ACCOUNT_SWITCH_REQUIRED',
         message: 'Sign out before choosing another Google account.',
       );
+    }
     _starting = true;
     final generation = session.beginAttempt();
     _generation = generation;
@@ -177,13 +180,14 @@ class GoogleSignInFlow implements GoogleAuthFlow {
         origin.resolve('/app-oauth').replace(queryParameters: {'to': url}),
       );
       _check(generation);
-      if (!opened)
+      if (!opened) {
         throw const HttpError(
           status: 0,
           code: 'GOOGLE_BROWSER_UNAVAILABLE',
           message:
               'Google sign-in could not open your browser. Please try again.',
         );
+      }
       return await pending.result.future;
     } on MissingPluginException {
       cancel();
@@ -201,12 +205,13 @@ class GoogleSignInFlow implements GoogleAuthFlow {
   }
 
   void _check(int generation) {
-    if (_disposed || !session.isCurrent(generation))
+    if (_disposed || !session.isCurrent(generation)) {
       throw const HttpError(
         status: 0,
         code: 'SESSION_CANCELLED',
         message: 'This Google sign-in attempt has ended.',
       );
+    }
   }
 
   Future<void> _receive(Uri uri) async {
@@ -215,8 +220,9 @@ class GoogleSignInFlow implements GoogleAuthFlow {
         pending.consumed ||
         uri.scheme != 'com.creo.app' ||
         uri.host != 'app' ||
-        uri.path != '/auth/google/callback')
+        uri.path != '/auth/google/callback') {
       return;
+    }
     try {
       _check(pending.generation);
       if (uri.userInfo.isNotEmpty ||
@@ -234,20 +240,22 @@ class GoogleSignInFlow implements GoogleAuthFlow {
       }
       pending.consumed = true;
       _timer?.cancel();
-      if (uri.queryParameters.containsKey('error'))
+      if (uri.queryParameters.containsKey('error')) {
         throw const HttpError(
           status: 0,
           code: 'GOOGLE_CANCELLED',
           message: 'Google sign-in was cancelled or denied.',
         );
+      }
       final code = uri.queryParameters['code'];
-      if (code == null || code.isEmpty)
+      if (code == null || code.isEmpty) {
         throw const HttpError(
           status: 0,
           code: 'GOOGLE_INVALID_CALLBACK',
           message:
               'Google did not return an authorization code. Please start again.',
         );
+      }
       final response = await repository.exchangeGoogleCode(
         code: code,
         redirectUri: pending.redirect,
@@ -271,11 +279,13 @@ class GoogleSignInFlow implements GoogleAuthFlow {
         _generation = null;
         session.cancel(pending.generation);
       }
-      if (!pending.result.isCompleted)
+      if (!pending.result.isCompleted) {
         pending.result.completeError(error, stack);
+      }
     }
   }
 
+  @override
   void cancel({String message = 'Google sign-in was cancelled.'}) {
     _timer?.cancel();
     _timer = null;
@@ -284,12 +294,14 @@ class GoogleSignInFlow implements GoogleAuthFlow {
     final generation = _generation;
     _generation = null;
     if (generation != null) session.cancel(generation);
-    if (pending != null && !pending.result.isCompleted)
+    if (pending != null && !pending.result.isCompleted) {
       pending.result.completeError(
         HttpError(status: 0, code: 'GOOGLE_CANCELLED', message: message),
       );
+    }
   }
 
+  @override
   void dispose() {
     session.removeListener(_sessionChanged);
     // Adoption publishes before the host removes the login route. Do not

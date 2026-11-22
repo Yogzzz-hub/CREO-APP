@@ -14,8 +14,9 @@ void main() {
       final requests = <http.Request>[];
       final session = await hubOwner((request) async {
         requests.add(request);
-        if (request.url.path.endsWith('/comment'))
+        if (request.url.path.endsWith('/comment')) {
           return jsonResponse({'status': 'comment_received'});
+        }
         return jsonResponse({'status': 'success', 'id': 'saved'});
       }, role: 'client');
       addTearDown(session.dispose);

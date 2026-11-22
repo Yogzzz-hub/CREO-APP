@@ -283,7 +283,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), null);
       expect(
-        find.text('The server could not complete sign-in. Please try again.'),
+        find.text(
+          'Something went wrong on our side. Please try again in a moment.',
+        ),
         findsOneWidget,
       );
       await tester.ensureVisible(find.text('Continue with Google'));

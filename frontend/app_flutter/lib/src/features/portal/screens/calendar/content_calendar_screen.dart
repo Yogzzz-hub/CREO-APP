@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/headings.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/creo_card.dart';
 import '../../widgets/creo_animations.dart';
@@ -40,7 +41,7 @@ class _ContentCalendarScreenState extends State<ContentCalendarScreen> {
           // ── Main Page Title ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Text(
+            child: Heading(
               'Content',
               style: Theme.of(context).textTheme.headlineLarge,
             ),

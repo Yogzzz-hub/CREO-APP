@@ -110,8 +110,9 @@ void main() {
               'onboarding_stage': 8,
             });
           }
-          if (request.url.path.endsWith('/pod-dashboard'))
+          if (request.url.path.endsWith('/pod-dashboard')) {
             return jsonResponse(pod());
+          }
           return jsonResponse({'items': []});
         });
         final appearance = CreoAppearance(

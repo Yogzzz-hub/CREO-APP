@@ -84,16 +84,19 @@ Future<void> invitePerson(BuildContext context, Kind kind) async {
     return;
   }
   if (nameTaken([for (final p in people) p.name], v['Full name']!)) {
-    if (context.mounted)
+    if (context.mounted) {
       toast(context, 'Someone named ${v['Full name']} already exists');
+    }
     return;
   }
+  if (!context.mounted) return;
   final api = currentAdminApi;
-  if (api == null)
+  if (api == null) {
     return toast(
       context,
       'Connect to the Creo account before adding a person.',
     );
+  }
   _inviteDrafts[kind] = Map<String, String>.from(v);
   try {
     final email = v['Work email']!.trim().toLowerCase();
@@ -158,17 +161,19 @@ Future<void> invitePerson(BuildContext context, Kind kind) async {
       case Kind.freelancer:
         await api.fetchFreelancers();
     }
-    if (context.mounted)
+    if (context.mounted) {
       toast(
         context,
         'Account created. Credential email ${result['email_delivered'] == true ? 'sent' : 'could not be confirmed'}; check the roster before retrying.',
       );
+    }
   } catch (_) {
-    if (context.mounted)
+    if (context.mounted) {
       toast(
         context,
         'Could not confirm the save. Your form draft is retained; refresh the roster before retrying to avoid a duplicate account.',
       );
+    }
   }
   if (identical(api, Object())) {
     save(
@@ -186,11 +191,12 @@ Future<void> invitePerson(BuildContext context, Kind kind) async {
           ..commission = toInt(v['Commission %']),
       ),
     );
-    if (context.mounted)
+    if (context.mounted) {
       toast(
         context,
         'Saved. The invite to ${v['Email for the invite']} goes out once the app is connected to the server.',
       );
+    }
   }
 }
 
@@ -291,8 +297,9 @@ class _Pods extends StatelessWidget {
     ], 'Create pod');
     if (v == null) return;
     if (nameTaken(podNames, v['Pod name']!)) {
-      if (context.mounted)
+      if (context.mounted) {
         toast(context, 'A pod named ${v['Pod name']} already exists');
+      }
       return;
     }
     save(() {
@@ -422,24 +429,27 @@ class _PodLeadState extends State<_PodLead> {
   void balance(Pod p) {
     final m = p.members.where((m) => m.active).toList()
       ..sort((a, b) => openTasks(b.name).compareTo(openTasks(a.name)));
-    if (m.length < 2 || openTasks(m.first.name) - openTasks(m.last.name) < 2)
+    if (m.length < 2 || openTasks(m.first.name) - openTasks(m.last.name) < 2) {
       return toast(context, 'Workload is already even');
+    }
     final t = tasks
         .where((t) => t.who == m.first.name && t.stage == Stage.todo)
         .firstOrNull;
-    if (t == null)
+    if (t == null) {
       return toast(context, '${m.first.name} has no to-do tasks to move');
+    }
     save(() => t.who = m.last.name);
     toast(context, 'Moved "${t.title}" to ${m.last.name}');
   }
 
   @override
   Widget build(BuildContext context) {
-    if (pods.isEmpty)
+    if (pods.isEmpty) {
       return page([
         const SizedBox(height: 16),
         empty('Create a pod first (Team, Pods)'),
       ]);
+    }
     final p = pods[pick.clamp(0, pods.length - 1)];
     final signOff = deliverables
         .where((d) => d.pod == p.name && d.state == Draft.review)
@@ -513,10 +523,11 @@ class _PodLeadState extends State<_PodLead> {
               lines: 4,
             ),
           ], 'Log');
-          if (v != null)
+          if (v != null) {
             save(
               () => p.standups.add('${dm(DateTime.now())}: ${v.values.first}'),
             );
+          }
         }),
         small('Balance loads', () => balance(p)),
         small(
@@ -536,8 +547,9 @@ class _Workload extends StatelessWidget {
   void rebalance(BuildContext context) {
     final busy = overloaded,
         free = workload.where((w) => w.$2 <= freeAt).toList();
-    if (busy.isEmpty || free.isEmpty)
+    if (busy.isEmpty || free.isEmpty) {
       return toast(context, 'Nobody to move tasks between');
+    }
     final from = busy.first.$1, to = free.last.$1;
     final move = tasks
         .where((t) => t.who == from && t.stage == Stage.todo)
@@ -639,11 +651,12 @@ class _LeaveState extends State<_Leave> {
         'reason': v['Reason'] ?? '',
       });
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         toast(
           context,
           'Could not confirm the request. Refresh leave requests before retrying.',
         );
+      }
     }
   }
 
@@ -688,22 +701,24 @@ class _LeaveState extends State<_Leave> {
                       try {
                         await currentAdminApi?.updateLeave(l.serverId!, false);
                       } catch (_) {
-                        if (context.mounted)
+                        if (context.mounted) {
                           toast(
                             context,
                             'Could not confirm rejection. Refresh leave requests before retrying.',
                           );
+                        }
                       }
                     }),
                     small('Approve', () async {
                       try {
                         await currentAdminApi?.updateLeave(l.serverId!, true);
                       } catch (_) {
-                        if (context.mounted)
+                        if (context.mounted) {
                           toast(
                             context,
                             'Could not confirm approval. Refresh leave requests before retrying.',
                           );
+                        }
                       }
                     }, filled: i == 0),
                   ],
@@ -748,16 +763,19 @@ Future<void> onboardClient(BuildContext context) async {
     return;
   }
   if (nameTaken(clientNames, v['Brand name']!)) {
-    if (context.mounted)
+    if (context.mounted) {
       toast(context, 'A client named ${v['Brand name']} already exists');
+    }
     return;
   }
+  if (!context.mounted) return;
   final api = currentAdminApi;
-  if (api == null)
+  if (api == null) {
     return toast(
       context,
       'Connect to the Creo account before adding a client.',
     );
+  }
   _clientDraft
     ..clear()
     ..addAll(v);
@@ -772,17 +790,19 @@ Future<void> onboardClient(BuildContext context) async {
     });
     _clientDraft.clear();
     await api.fetchClients();
-    if (context.mounted)
+    if (context.mounted) {
       toast(
         context,
         'Client account created. Credential email ${result['email_dispatched'] == true ? 'sent' : 'could not be confirmed'}; check the client list before retrying.',
       );
+    }
   } catch (_) {
-    if (context.mounted)
+    if (context.mounted) {
       toast(
         context,
         'Could not confirm the client save. Your draft is retained; refresh the client list before retrying.',
       );
+    }
   }
 }
 
@@ -944,11 +964,12 @@ void openClient(BuildContext context, Client cl) => openPage(context, cl.name, (
               await api.offboardClient(cl.serverId!);
               if (c.mounted) Navigator.pop(c);
             } catch (error) {
-              if (c.mounted)
+              if (c.mounted) {
                 toast(
                   c,
                   'Offboarding could not be confirmed. Refresh the client before retrying.',
                 );
+              }
             }
           }
         },

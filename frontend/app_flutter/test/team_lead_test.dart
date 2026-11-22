@@ -84,7 +84,7 @@ void main() {
     () async {
       var replies = 0;
       final session = await signedIn((request) async {
-        if (request.url.path.endsWith('pod-dashboard'))
+        if (request.url.path.endsWith('pod-dashboard')) {
           return http.Response(
             jsonEncode({
               ...pod(),
@@ -94,7 +94,8 @@ void main() {
             }),
             200,
           );
-        if (request.url.path.endsWith('/support/tickets'))
+        }
+        if (request.url.path.endsWith('/support/tickets')) {
           return http.Response(
             jsonEncode([
               {
@@ -106,6 +107,7 @@ void main() {
             ]),
             200,
           );
+        }
         replies++;
         expect(
           request.url.path,
@@ -172,7 +174,7 @@ void main() {
     () async {
       var writes = 0;
       final session = await signedIn((request) async {
-        if (request.method == 'GET')
+        if (request.method == 'GET') {
           return http.Response(
             jsonEncode({
               ...pod(),
@@ -182,6 +184,7 @@ void main() {
             }),
             200,
           );
+        }
         writes++;
         expect(request.url.path, '/api/v1/tasks');
         expect(jsonDecode(request.body), {
@@ -227,8 +230,9 @@ void main() {
     () async {
       var writes = 0;
       final session = await signedIn((request) async {
-        if (request.method == 'GET')
+        if (request.method == 'GET') {
           return http.Response(jsonEncode(pod()), 200);
+        }
         writes++;
         expect(request.url.path, '/api/v1/admin/pod-tasks/task-a/qa-review');
         expect(jsonDecode(request.body), {
@@ -288,8 +292,9 @@ void main() {
     () async {
       var writes = 0;
       final session = await signedIn((request) async {
-        if (request.method == 'GET')
+        if (request.method == 'GET') {
           return http.Response(jsonEncode(pod()), 200);
+        }
         writes++;
         expect(jsonDecode(request.body), {'assignee_id': 'member-a'});
         return http.Response(

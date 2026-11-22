@@ -92,9 +92,11 @@ class LandingFlipText extends StatelessWidget {
                     alignment: Alignment.bottomCenter,
                     transform: Matrix4.identity()
                       ..setEntry(3, 2, 1 / 700)
-                      ..translate(
+                      ..translateByDouble(
                         0.0,
                         (style.fontSize ?? 32) * .42 * (1 - amount),
+                        0.0,
+                        1.0,
                       )
                       ..rotateX(-100 * math.pi / 180 * (1 - amount)),
                     child: Text(character, style: style),

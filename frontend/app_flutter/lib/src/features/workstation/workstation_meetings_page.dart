@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_session.dart';
+import '../../core/headings.dart';
 
 /// Begin invalidation synchronously before waiting for either secure-store task.
 /// The shared preference queue prevents a pending save from outliving cleanup.
@@ -399,7 +400,7 @@ class _MeetingState extends State<WorkstationMeetingsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Pod standup')),
+    appBar: AppBar(title: const Heading('Pod standup')),
     body: SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),

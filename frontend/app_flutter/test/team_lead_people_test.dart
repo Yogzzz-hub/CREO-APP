@@ -29,7 +29,7 @@ void main() {
     () async {
       var writes = 0;
       final session = await signedIn((request) async {
-        if (request.method == 'GET')
+        if (request.method == 'GET') {
           return http.Response(
             jsonEncode([
               leave(),
@@ -38,6 +38,7 @@ void main() {
             ]),
             200,
           );
+        }
         writes++;
         expect(request.url.path, '/api/v1/admin/leave/leave-a/reject');
         expect(jsonDecode(request.body), {});
@@ -71,8 +72,9 @@ void main() {
     () async {
       var writes = 0;
       final session = await signedIn((request) async {
-        if (request.method == 'GET')
+        if (request.method == 'GET') {
           return http.Response(jsonEncode([leave()]), 200);
+        }
         writes++;
         return http.Response('{}', 200);
       });
@@ -95,8 +97,9 @@ void main() {
     () async {
       var writes = 0;
       final session = await signedIn((request) async {
-        if (request.method == 'GET')
+        if (request.method == 'GET') {
           return http.Response(jsonEncode(pod()), 200);
+        }
         writes++;
         expect(request.method, 'PATCH');
         expect(request.url.path, '/api/v1/admin/teams/member-a');
@@ -150,11 +153,12 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       var writes = 0;
       final session = await signedIn((request) async {
-        if (request.method == 'GET')
+        if (request.method == 'GET') {
           return http.Response(
             jsonEncode([leave(), leave(id: 'own', self: true)]),
             200,
           );
+        }
         writes++;
         return http.Response('{"status":"approved","id":"leave-a"}', 200);
       });

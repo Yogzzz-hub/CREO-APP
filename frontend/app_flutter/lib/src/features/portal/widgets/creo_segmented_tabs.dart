@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/headings.dart';
 import '../core/theme/app_colors.dart';
 import 'creo_animations.dart';
 
@@ -60,7 +61,7 @@ class CreoSegmentedTabs extends StatelessWidget {
                         ? (isDark ? AppColors.obsidian : Colors.white)
                         : (isDark ? AppColors.mist : AppColors.lightMist),
                   ),
-                  child: Text(tabs[index]),
+                  child: tabLabel(tabs[index]),
                 ),
               ),
             ),

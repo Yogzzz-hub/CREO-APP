@@ -8,6 +8,7 @@ import '../splash/splash_screen.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_repository.dart';
 import '../../core/auth_session.dart';
+import '../../core/headings.dart';
 import 'workstation_task_page.dart';
 import 'workstation_account_pages.dart';
 import 'workstation_hub_pages.dart';
@@ -1117,7 +1118,7 @@ class _WorkstationPageState extends State<WorkstationPage>
       Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          Heading(
             'Assigned deliverables',
             style: Theme.of(context).textTheme.titleLarge,
           ),
@@ -1752,7 +1753,7 @@ class _WorkstationPageState extends State<WorkstationPage>
                                 children: [
                                   Semantics(
                                     header: true,
-                                    child: Text(
+                                    child: Heading(
                                       'Your workspace',
                                       style: Theme.of(
                                         context,

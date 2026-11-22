@@ -182,8 +182,9 @@ void main() {
       var fail = true;
       var productionReads = 0;
       final session = await hubOwner((request) async {
-        if (fail && request.url.path == '/api/v1/onboarding/status')
+        if (fail && request.url.path == '/api/v1/onboarding/status') {
           return jsonResponse({'detail': 'Unavailable'}, 503);
+        }
         final access = readyPortalResponse(request);
         if (access != null) return access;
         productionReads++;

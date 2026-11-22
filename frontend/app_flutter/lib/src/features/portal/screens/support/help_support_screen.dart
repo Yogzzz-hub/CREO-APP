@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/headings.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/creo_card.dart';
 import '../../widgets/creo_segmented_tabs.dart';
@@ -315,7 +316,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
+          Heading(
             'Support Desk',
             style: Theme.of(context).textTheme.headlineLarge,
           ),

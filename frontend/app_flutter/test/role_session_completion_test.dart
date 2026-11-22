@@ -14,8 +14,9 @@ void main() {
     () async {
       final store = MemorySessionStore()..value = saved();
       final session = owner(store, (request) async {
-        if (request.url.path.endsWith('/me'))
+        if (request.url.path.endsWith('/me')) {
           return jsonResponse(profile(restricted: true));
+        }
         expect(request.url.path, '/api/v1/auth/set-mandatory-password');
         expect(request.headers['authorization'], 'Bearer ${jwt()}');
         expect(jsonDecode(request.body), {'new_password': '  Exact123!  '});
@@ -37,8 +38,9 @@ void main() {
       var calls = 0;
       final store = MemorySessionStore()..value = saved();
       final session = owner(store, (request) async {
-        if (request.url.path.endsWith('/me'))
+        if (request.url.path.endsWith('/me')) {
           return jsonResponse(profile(restricted: true));
+        }
         calls++;
         return pending.future;
       });
@@ -152,8 +154,9 @@ void main() {
       var requests = 0;
       final session = owner(store, (request) async {
         if (request.url.path.endsWith('/me')) return jsonResponse(profile());
-        if (request.url.path.endsWith('/refresh'))
+        if (request.url.path.endsWith('/refresh')) {
           return jsonResponse({'access_token': jwt(marker: 'renewed')});
+        }
         expect(request.headers['idempotency-key'], 'operation-a');
         return ++requests == 1
             ? jsonResponse({}, 401)

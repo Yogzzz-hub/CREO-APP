@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/headings.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/creo_card.dart';
 import '../../widgets/creo_segmented_tabs.dart';
@@ -23,7 +24,7 @@ class _InboxShellScreenState extends State<InboxShellScreen> {
         // ── Main Page Title ──
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Text(
+          child: Heading(
             'Inbox',
             style: Theme.of(context).textTheme.headlineLarge,
           ),
@@ -92,7 +93,7 @@ class _InboxShellScreenState extends State<InboxShellScreen> {
           borderRadius: BorderRadius.circular(24),
         ),
         child: Center(
-          child: Text(
+          child: Heading(
             label,
             style: TextStyle(
               fontFamily: 'Plus Jakarta Sans',
@@ -112,17 +113,21 @@ class _InboxShellScreenState extends State<InboxShellScreen> {
   Widget _buildChatView(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return ListView(
+    // The last card stretches down so the list reaches the button at the
+    // bottom edge; the gap and button after it keep their own height.
+    return FillScroll(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 18),
+      fill: 8, // the direct messages card
       children: [
         // Search
         const CreoSearchBar(hintText: 'Search chats'),
         const SizedBox(height: 20),
 
         // Groups / Channels
-        Text(
+        Heading(
           'Channels & Pods',
+          icon: Icons.tag,
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -140,8 +145,9 @@ class _InboxShellScreenState extends State<InboxShellScreen> {
         const SizedBox(height: 24),
 
         // Direct Messages with Pod Specialists
-        Text(
+        Heading(
           'Direct Messages',
+          icon: Icons.person_outline,
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -172,9 +178,12 @@ class _InboxShellScreenState extends State<InboxShellScreen> {
   Widget _buildSupportView(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return ListView(
+    // The last card stretches down so the list reaches the button at the
+    // bottom edge; the gap and button after it keep their own height.
+    return FillScroll(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 18),
+      fill: 6, // the tickets card
       children: [
         // SLA & Metrics Row matching PDF
         Row(

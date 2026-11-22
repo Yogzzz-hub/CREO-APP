@@ -57,19 +57,21 @@ void main() {
     ) async {
       final store = MemorySessionStore()..value = saved();
       final session = owner(store, (request) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse({
             ...profile(),
             'role': role,
             'onboarding_stage': 1,
           });
-        if (request.url.path.endsWith('/onboarding/status'))
+        }
+        if (request.url.path.endsWith('/onboarding/status')) {
           return jsonResponse({
             'stage': 1,
             'stage_name': 'Account verified',
             'next_required_stage': 'terms',
             'is_complete': false,
           });
+        }
         return jsonResponse({'items': []});
       });
       // The client dashboard is laid out for real fonts; the wide test
@@ -109,8 +111,9 @@ void main() {
   ) async {
     final store = MemorySessionStore()..value = saved();
     final session = owner(store, (request) async {
-      if (request.url.path.endsWith('/auth/me'))
+      if (request.url.path.endsWith('/auth/me')) {
         return jsonResponse({...profile(), 'role': 'team_lead'});
+      }
       return jsonResponse({'items': []});
     });
     await mount(tester, session);
@@ -246,8 +249,9 @@ void main() {
       final session = owner(store, (request) async {
         final access = readyPortalResponse(request);
         if (access != null) return access;
-        if (!request.url.path.endsWith('/me'))
+        if (!request.url.path.endsWith('/me')) {
           return jsonResponse({'items': []});
+        }
         return ++requests == 1 ? jsonResponse(profile()) : next.future;
       });
       await mount(tester, session);

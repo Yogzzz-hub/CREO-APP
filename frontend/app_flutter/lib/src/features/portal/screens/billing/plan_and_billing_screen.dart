@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/headings.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/creo_card.dart';
 import '../../widgets/creo_segmented_tabs.dart';
@@ -44,7 +45,7 @@ class _PlanAndBillingScreenState extends State<PlanAndBillingScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Main Page Title ──
-          Text(
+          Heading(
             'Plan & billing',
             style: Theme.of(context).textTheme.headlineLarge,
           ),

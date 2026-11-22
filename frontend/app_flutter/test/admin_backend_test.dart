@@ -13,8 +13,9 @@ void main() {
       final store = MemorySessionStore()..value = saved();
       final seen = <http.Request>[];
       final session = owner(store, (request) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse(profile());
+        }
         seen.add(request);
         return jsonResponse({
           'id': 'staff-1',
@@ -51,16 +52,18 @@ void main() {
       final store = MemorySessionStore()..value = saved();
       var failCreate = true;
       final session = owner(store, (request) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse(profile());
+        }
         if (request.url.path == '/api/v1/admin/teams' &&
             request.method == 'POST' &&
             failCreate) {
           return jsonResponse({'detail': 'upstream timeout'}, 500);
         }
         if (request.url.path == '/api/v1/admin/teams' &&
-            request.method == 'GET')
+            request.method == 'GET') {
           return jsonResponse(<Object>[]);
+        }
         if (request.url.path == '/api/v1/admin/teams' &&
             request.method == 'POST') {
           return jsonResponse({'id': 'staff-2', 'email_delivered': false});
@@ -89,8 +92,9 @@ void main() {
     final store = MemorySessionStore()..value = saved();
     final session = owner(store, (request) async {
       if (request.url.path.endsWith('/auth/me')) return jsonResponse(profile());
-      if (request.url.path == '/api/v1/admin/clients')
+      if (request.url.path == '/api/v1/admin/clients') {
         return jsonResponse(<Object>[]);
+      }
       return jsonResponse({});
     });
     await session.restore();

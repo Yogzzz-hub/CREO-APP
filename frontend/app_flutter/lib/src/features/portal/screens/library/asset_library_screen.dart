@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/headings.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/creo_card.dart';
 import '../../widgets/creo_pill_button.dart';
@@ -53,7 +54,7 @@ class _AssetLibraryScreenState extends State<AssetLibraryScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              Heading(
                 'Asset Library',
                 style: Theme.of(context).textTheme.headlineLarge,
               ),

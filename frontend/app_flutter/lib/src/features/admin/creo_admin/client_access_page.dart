@@ -22,9 +22,7 @@ class _ClientAccessState extends State<ClientAccessPage> {
   List<Map<String, dynamic>> _plans = [];
   String? _plan, _method, _error, _notice;
   bool _loading = true, _busy = false, _confirmed = false;
-  String message(Object error) => error is HttpError
-      ? error.message
-      : error.toString().replaceFirst('Bad state: ', '');
+  String message(Object error) => friendlyError(error);
 
   @override
   void initState() {
@@ -59,8 +57,9 @@ class _ClientAccessState extends State<ClientAccessPage> {
   }
 
   Future<void> _activate() async {
-    if (_busy || _loading || _confirmed || !_form.currentState!.validate())
+    if (_busy || _loading || _confirmed || !_form.currentState!.validate()) {
       return;
+    }
     final plan = _plans.firstWhere((row) => row['id'].toString() == _plan);
     final confirmed = await showDialog<bool>(
       context: context,

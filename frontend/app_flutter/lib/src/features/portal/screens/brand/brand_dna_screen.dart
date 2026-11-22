@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/headings.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/creo_card.dart';
@@ -214,7 +215,7 @@ class _BrandDnaScreenState extends State<BrandDnaScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  Heading(
                     'Brand DNA',
                     style: Theme.of(context).textTheme.headlineLarge,
                   ),

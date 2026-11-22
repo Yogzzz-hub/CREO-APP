@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_repository.dart';
 import '../../core/auth_session.dart';
+import '../../core/headings.dart';
 import 'workstation_files.dart';
 import 'workstation_hub_repository.dart';
 
@@ -107,9 +108,10 @@ abstract class _LiveState<T extends StatefulWidget> extends State<T>
     List<Widget> children, {
     Widget? bottom,
     ScrollController? scrollController,
+    bool fill = false,
   }) => Scaffold(
     appBar: AppBar(
-      title: Text(title),
+      title: Heading(title),
       actions: [
         IconButton(
           tooltip: 'Refresh',
@@ -124,11 +126,12 @@ abstract class _LiveState<T extends StatefulWidget> extends State<T>
           constraints: const BoxConstraints(maxWidth: 760),
           child: RefreshIndicator(
             onRefresh: reload,
-            child: ListView(
+            child: FillScroll(
               controller: scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              keyboardDismiss: true,
               padding: const EdgeInsets.all(20),
+              fill: fill && active ? null : -1,
               children: [
                 if (active && (loading || saving))
                   Semantics(
@@ -299,8 +302,6 @@ class _HubState extends _LiveState<WorkstationHubPage> {
       ],
     ),
     const SizedBox(height: 16),
-    if (!loading && channels.isEmpty && contacts.isEmpty && error == null)
-      const Text('No conversations are available for this account yet.'),
     if ({'admin', 'super_admin', 'team_lead'}.contains(repository.role))
       OutlinedButton.icon(
         onPressed: loading
@@ -317,21 +318,54 @@ class _HubState extends _LiveState<WorkstationHubPage> {
         icon: const Icon(Icons.group_add_outlined),
         label: const Text('Create group'),
       ),
-    if (query.isNotEmpty && !channels.any(matches) && !contacts.any(matches))
-      const Text('No conversations match your search.'),
-    if (filter != 'Direct' && channels.where(matches).isNotEmpty)
-      _sectionHeading(context, 'CHANNELS', channels.where(matches).length),
-    if (filter != 'Direct')
-      for (final row in channels.where(matches)) _conversation(row, false),
-    if (filter != 'Channels' && contacts.where(matches).isNotEmpty)
-      _sectionHeading(
-        context,
-        'DIRECT MESSAGES',
-        contacts.where(matches).length,
+    // One list container that reaches the bottom edge on short lists.
+    Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: context.creo.appLine),
+        borderRadius: BorderRadius.circular(20),
       ),
-    if (filter != 'Channels')
-      for (final row in contacts.where(matches)) _conversation(row, true),
-  ]);
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!loading && channels.isEmpty && contacts.isEmpty && error == null)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text(
+                'No conversations are available for this account yet.',
+              ),
+            ),
+          if (query.isNotEmpty &&
+              !channels.any(matches) &&
+              !contacts.any(matches))
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text('No conversations match your search.'),
+            ),
+          if (filter != 'Direct' && channels.where(matches).isNotEmpty)
+            _sectionHeading(
+              context,
+              'CHANNELS',
+              channels.where(matches).length,
+              Icons.tag,
+            ),
+          if (filter != 'Direct')
+            for (final row in channels.where(matches))
+              _conversation(row, false),
+          if (filter != 'Channels' && contacts.where(matches).isNotEmpty)
+            _sectionHeading(
+              context,
+              'DIRECT MESSAGES',
+              contacts.where(matches).length,
+              Icons.person_outline,
+            ),
+          if (filter != 'Channels')
+            for (final row in contacts.where(matches)) _conversation(row, true),
+        ],
+      ),
+    ),
+  ], fill: true);
   Widget _conversation(WorkspaceRecord row, bool direct) {
     final title = workspaceText(row[direct ? 'name' : 'label'], 'Conversation');
     return Padding(
@@ -436,7 +470,7 @@ class _GroupFormState extends State<_GroupForm> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Create group')),
+    appBar: AppBar(title: const Heading('Create group')),
     body: SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(20),
@@ -590,8 +624,9 @@ class _ConversationState extends _LiveState<_ConversationPage> {
           uploadProgress = null;
         }
       });
-      if (following)
+      if (following) {
         WidgetsBinding.instance.addPostFrameCallback((_) => jumpToLatest());
+      }
       if (oldFile != null) await WorkstationFileTransfer.release(oldFile);
     } catch (err) {
       if (mounted && run == epoch) {
@@ -1080,7 +1115,7 @@ class _PublishingState extends _LiveState<WorkstationPublishingPage> {
     ),
     const SizedBox(height: 16),
     DropdownButtonFormField<String>(
-      value: status,
+      initialValue: status,
       isExpanded: true,
       decoration: const InputDecoration(labelText: 'Publishing status'),
       items: [
@@ -1108,7 +1143,7 @@ class _PublishingState extends _LiveState<WorkstationPublishingPage> {
       ),
     if (clients.isNotEmpty) ...[
       DropdownButtonFormField<String>(
-        value: client,
+        initialValue: client,
         isExpanded: true,
         decoration: const InputDecoration(labelText: 'Client'),
         items: [
@@ -1546,7 +1581,7 @@ class _ScheduleFormState extends State<_ScheduleForm> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Publishing schedule')),
+    appBar: AppBar(title: const Heading('Publishing schedule')),
     body: SafeArea(
       child: Form(
         key: form,
@@ -1595,7 +1630,7 @@ class _ScheduleFormState extends State<_ScheduleForm> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: media,
+              initialValue: media,
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Format'),
               items: [
@@ -1611,7 +1646,7 @@ class _ScheduleFormState extends State<_ScheduleForm> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              value: fold ?? -1,
+              initialValue: fold ?? -1,
               isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Repeated daylight-saving time',
@@ -1652,29 +1687,34 @@ class _ScheduleFormState extends State<_ScheduleForm> {
   );
 }
 
-Widget _sectionHeading(BuildContext context, String title, int count) =>
-    Padding(
-      padding: const EdgeInsets.fromLTRB(4, 16, 4, 10),
-      child: Wrap(
-        spacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 11,
-              letterSpacing: 1.2,
-              fontWeight: FontWeight.w800,
-              color: context.creo.appMist,
-            ),
-          ),
-          Text(
-            '$count',
-            style: TextStyle(fontSize: 11, color: context.creo.appMist),
-          ),
-        ],
+Widget _sectionHeading(
+  BuildContext context,
+  String title,
+  int count, [
+  IconData? icon,
+]) => Padding(
+  padding: const EdgeInsets.fromLTRB(4, 16, 4, 10),
+  child: Wrap(
+    spacing: 8,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [
+      Heading(
+        title,
+        icon: icon,
+        style: TextStyle(
+          fontSize: 11,
+          letterSpacing: 1.2,
+          fontWeight: FontWeight.w800,
+          color: context.creo.appMist,
+        ),
       ),
-    );
+      Text(
+        '$count',
+        style: TextStyle(fontSize: 11, color: context.creo.appMist),
+      ),
+    ],
+  ),
+);
 
 // Server sends ISO-8601 UTC; show it as local "dd/mm/yyyy hh:mm".
 String _publishTime(Object? value) {

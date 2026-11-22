@@ -4613,16 +4613,23 @@ async def list_admin_support_tickets(
     res = await db.execute(stmt)
     tickets = res.scalars().all()
 
-    results = []
-    for t in tickets:
+    # One query for every ticket's client instead of one per ticket.
+    client_rows: dict = {}
+    client_ids = {t.client_id for t in tickets if t.client_id}
+    if client_ids:
         client_res = await db.execute(
-            select(User.email, User.full_name, ClientProfile.company_name, Plan.display_name)
+            select(User.id, User.email, User.full_name, ClientProfile.company_name, Plan.display_name)
             .outerjoin(ClientProfile, ClientProfile.user_id == User.id)
             .outerjoin(Subscription, (Subscription.client_id == User.id) & (Subscription.status.in_(["active", "trialing"])))
             .outerjoin(Plan, Plan.id == Subscription.plan_id)
-            .where(User.id == t.client_id)
+            .where(User.id.in_(client_ids))
         )
-        c_row = client_res.first()
+        for row in client_res.all():
+            client_rows.setdefault(row[0], row[1:])
+
+    results = []
+    for t in tickets:
+        c_row = client_rows.get(t.client_id)
         client_email = c_row[0] if c_row else ""
         client_name = c_row[1] if c_row else ""
         company_name = c_row[2] if c_row else ""
@@ -7548,15 +7555,24 @@ async def list_freelancers(
     res = await db.execute(query)
     rows = res.all()
 
-    freelancers = []
-    for user, profile in rows:
-        tasks_res = await db.execute(
+    # Task counts for every freelancer in one grouped query instead of one per freelancer.
+    counts: dict = {}
+    user_ids = [user.id for user, _ in rows]
+    if user_ids:
+        counts_res = await db.execute(
             select(
+                Task.assigned_to,
                 func.count(Task.id),
                 func.count(Task.id).filter(Task.status.in_([TaskStatus.IN_PRODUCTION, TaskStatus.INTERNAL_QA, TaskStatus.CLIENT_REVIEW])),
-            ).where(Task.assigned_to == user.id)
+            )
+            .where(Task.assigned_to.in_(user_ids))
+            .group_by(Task.assigned_to)
         )
-        total_tasks, active_tasks = tasks_res.one()
+        counts = {uid: (total, active) for uid, total, active in counts_res.all()}
+
+    freelancers = []
+    for user, profile in rows:
+        total_tasks, active_tasks = counts.get(user.id, (0, 0))
 
         prof_status = profile.status if profile else "active"
         freelancers.append({
@@ -7623,6 +7639,19 @@ async def update_freelancer_status(
     }
 
 
+async def _client_names(db: AsyncSession, client_ids: set) -> dict:
+    """Client id -> company name, else full name, in one query. Missing ids are left out."""
+    client_ids.discard(None)
+    if not client_ids:
+        return {}
+    rows = await db.execute(
+        select(User.id, User.full_name, ClientProfile.company_name)
+        .outerjoin(ClientProfile, ClientProfile.user_id == User.id)
+        .where(User.id.in_(client_ids))
+    )
+    return {uid: company or full or "Client" for uid, full, company in rows.all()}
+
+
 @router.get("/admin/deliverables")
 async def list_admin_deliverables(
     client_id: uuid.UUID | None = Query(None),
@@ -7642,12 +7671,29 @@ async def list_admin_deliverables(
     deliv_stmt = deliv_stmt.order_by(Deliverable.created_at.desc()).limit(150)
     deliverables = (await db.execute(deliv_stmt)).scalars().all()
 
+    # 2. Tasks that represent deliverables (e.g. reels, carousels, static posts, stories)
+    task_stmt = select(Task).where(
+        Task.status.in_([TaskStatus.BACKLOG, TaskStatus.IN_PRODUCTION, TaskStatus.INTERNAL_QA, TaskStatus.CLIENT_REVIEW])
+    )
+    if client_id:
+        task_stmt = task_stmt.where(Task.client_id == client_id)
+    if _agency_filter(actor):
+        task_stmt = task_stmt.where(Task.agency_id == actor.agency_id)
+    task_stmt = task_stmt.order_by(Task.created_at.desc()).limit(150)
+    tasks = (await db.execute(task_stmt)).scalars().all()
+
+    # Load every linked task and client name in two queries instead of several per row.
+    task_ids = {d.task_id for d in deliverables if d.task_id}
+    linked_tasks = (
+        {t.id: t for t in (await db.execute(select(Task).where(Task.id.in_(task_ids)))).scalars().all()}
+        if task_ids
+        else {}
+    )
+    names = await _client_names(db, {d.client_id for d in deliverables} | {t.client_id for t in tasks})
+
     for d in deliverables:
-        task = (await db.execute(select(Task).where(Task.id == d.task_id))).scalar_one_or_none() if d.task_id else None
-        client = (await db.execute(select(User).where(User.id == d.client_id))).scalar_one_or_none()
-        c_prof = (await db.execute(select(ClientProfile).where(ClientProfile.user_id == d.client_id))).scalar_one_or_none() if d.client_id else None
-        
-        client_name = (c_prof.company_name if (c_prof and c_prof.company_name) else (client.full_name if (client and client.full_name) else "Client"))
+        task = linked_tasks.get(d.task_id)
+        client_name = names.get(d.client_id, "Client")
         bp = dict(task.blueprint or {}) if task else {}
         
         deliv_type_str = task.deliverable_type.value if (task and hasattr(task.deliverable_type, "value")) else (str(task.deliverable_type) if task else (d.file_type or "Video"))
@@ -7679,25 +7725,12 @@ async def list_admin_deliverables(
             "drive_url": bp.get("raw_footage_url") or "",
         })
 
-    # 2. Also fetch Tasks that represent deliverables (e.g. reels, carousels, static posts, stories)
-    task_stmt = select(Task).where(
-        Task.status.in_([TaskStatus.BACKLOG, TaskStatus.IN_PRODUCTION, TaskStatus.INTERNAL_QA, TaskStatus.CLIENT_REVIEW])
-    )
-    if client_id:
-        task_stmt = task_stmt.where(Task.client_id == client_id)
-    if _agency_filter(actor):
-        task_stmt = task_stmt.where(Task.agency_id == actor.agency_id)
-    task_stmt = task_stmt.order_by(Task.created_at.desc()).limit(150)
-    tasks = (await db.execute(task_stmt)).scalars().all()
-
     for t in tasks:
         if str(t.id) in seen_ids:
             continue
 
-        client = (await db.execute(select(User).where(User.id == t.client_id))).scalar_one_or_none()
-        c_prof = (await db.execute(select(ClientProfile).where(ClientProfile.user_id == t.client_id))).scalar_one_or_none() if t.client_id else None
-        client_name = (c_prof.company_name if (c_prof and c_prof.company_name) else (client.full_name if (client and client.full_name) else "Client"))
-        
+        client_name = names.get(t.client_id, "Client")
+
         bp = dict(t.blueprint or {})
         deliv_type_str = t.deliverable_type.value if hasattr(t.deliverable_type, "value") else str(t.deliverable_type)
         raw_format = bp.get("format") or deliv_type_str.capitalize()
@@ -7957,12 +7990,19 @@ async def get_freelancer_my_tasks(
     )
     rows = tasks_res.all()
 
+    # Every task's deliverables in one query instead of one per task.
+    by_task: dict = {}
+    task_ids = [task.id for task, _ in rows]
+    if task_ids:
+        d_res = await db.execute(
+            select(Deliverable).where(Deliverable.task_id.in_(task_ids), Deliverable.is_archived.is_(False))
+        )
+        for d in d_res.scalars().all():
+            by_task.setdefault(d.task_id, []).append(d)
+
     items = []
     for task, client_user in rows:
-        d_res = await db.execute(
-            select(Deliverable).where(Deliverable.task_id == task.id, Deliverable.is_archived.is_(False))
-        )
-        deliverables = d_res.scalars().all()
+        deliverables = by_task.get(task.id, [])
         bp = task.blueprint or {}
 
         items.append({

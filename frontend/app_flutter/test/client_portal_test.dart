@@ -6,18 +6,30 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app_flutter/src/features/portal/client_api_service.dart';
 import 'package:app_flutter/src/features/portal/models/dashboard_model.dart';
 import 'package:app_flutter/src/features/portal/models/deliverable_model.dart';
+import 'package:app_flutter/src/features/portal/screens/review/deliverables_review_screen.dart' show reviewDateLabel;
 import 'auth_contract_test.dart' show MemorySessionStore;
 import 'client_portal_access_test.dart' show readyPortalResponse;
 import 'session_lifecycle_test.dart' show owner, saved, profile, jsonResponse;
 
 void main() {
+  test('review cards show a readable date, not the raw timestamp', () {
+    final when = DateTime.parse('2030-01-02T10:05:00Z').toLocal();
+    final hh = when.hour.toString().padLeft(2, '0');
+    final mm = when.minute.toString().padLeft(2, '0');
+    expect(reviewDateLabel('2030-01-02T10:05:00Z'), '${when.day} Jan, $hh:$mm');
+    expect(reviewDateLabel(null), 'Not scheduled');
+    expect(reviewDateLabel(''), 'Not scheduled');
+    expect(reviewDateLabel('next week'), 'next week');
+  });
+
   test(
     'deliverables follow server cursor without losing earlier pages',
     () async {
       final store = MemorySessionStore()..value = saved();
       final session = owner(store, (request) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse(profile());
+        }
         if (request.url.queryParameters['cursor_id'] == 'asset-a') {
           return jsonResponse({
             'items': [
@@ -134,8 +146,9 @@ void main() {
       final store = MemorySessionStore()..value = saved();
       var empty = false;
       final session = owner(store, (request) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse(profile());
+        }
         if (request.method == 'POST') {
           expect(
             request.url.path,

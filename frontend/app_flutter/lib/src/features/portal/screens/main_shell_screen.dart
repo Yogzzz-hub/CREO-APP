@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/auth_repository.dart';
 import 'package:flutter/services.dart';
 import '../core/theme/app_colors.dart';
 import '../widgets/creo_top_header.dart';
@@ -172,7 +173,14 @@ class _MainShellScreenState extends State<MainShellScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error approving deliverable: $e')),
+          SnackBar(
+            content: Text(
+              friendlyError(
+                e,
+                fallback: 'Could not approve this deliverable. Please try again.',
+              ),
+            ),
+          ),
         );
       }
     }
@@ -222,7 +230,14 @@ class _MainShellScreenState extends State<MainShellScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error submitting revision: $e')),
+          SnackBar(
+            content: Text(
+              friendlyError(
+                e,
+                fallback: 'Could not send your change request. Please try again.',
+              ),
+            ),
+          ),
         );
       }
     }

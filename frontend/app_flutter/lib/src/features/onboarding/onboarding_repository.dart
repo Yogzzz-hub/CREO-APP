@@ -9,20 +9,22 @@ class ClientOnboardingRepository {
   final int _generation;
   Future<void> removeLogo() async {
     _check();
-    if (!_writes.add('logo'))
+    if (!_writes.add('logo')) {
       throw const HttpError(
         status: 409,
         code: 'WRITE_UNCONFIRMED',
         message: 'The previous logo action is pending or unconfirmed.',
       );
+    }
     try {
       final result = await session.request(
         'DELETE',
         '/api/v1/onboarding/questionnaire/logo',
       );
       _check();
-      if (result['status'] != 'ok')
+      if (result['status'] != 'ok') {
         throw const FormatException('Deletion unconfirmed');
+      }
       _writes.remove('logo');
     } catch (error) {
       if (error is HttpError &&
@@ -150,8 +152,9 @@ class ClientOnboardingRepository {
         'brand' => value['status'] is String,
         _ => false,
       };
-      if (!verified)
+      if (!verified) {
         throw const FormatException('The save response was not confirmed.');
+      }
       _writes.remove(endpoint);
       return value;
     } catch (error) {

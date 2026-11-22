@@ -6,6 +6,7 @@ import '../../core/app_appearance.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_repository.dart';
 import '../../core/auth_session.dart';
+import '../../core/headings.dart';
 import 'workstation_account_repository.dart';
 import 'workstation_data.dart';
 
@@ -30,7 +31,7 @@ class _Panel extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        Heading(title, style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 16),
         ...children,
       ],
@@ -76,50 +77,52 @@ class _Frame extends StatelessWidget {
   final Future<void> Function() refresh;
   final bool loading;
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(title),
-      actions: [
-        IconButton(
-          tooltip: 'Refresh',
-          onPressed: loading ? null : refresh,
-          icon: const Icon(Icons.refresh),
+  Widget build(BuildContext context) {
+    final items = [
+      if (loading)
+        Semantics(
+          liveRegion: true,
+          label: 'Loading account information',
+          child: MediaQuery.disableAnimationsOf(context)
+              ? const Text('Loading…')
+              : const LinearProgressIndicator(),
         ),
-        if (CreoAppearanceScope.maybeOf(context) != null)
-          const CreoThemeToggle(),
-      ],
-    ),
-    body: SafeArea(
-      child: RefreshIndicator(
-        onRefresh: refresh,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: const EdgeInsets.all(16),
+      if (loading) const SizedBox(height: 16),
+      ...children,
+    ];
+    return Scaffold(
+      appBar: AppBar(
+        title: Heading(title),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: loading ? null : refresh,
+            icon: const Icon(Icons.refresh),
+          ),
+          if (CreoAppearanceScope.maybeOf(context) != null)
+            const CreoThemeToggle(),
+        ],
+      ),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: refresh,
+          // The last panel stretches to the bottom edge on short pages.
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 760),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (loading)
-                    Semantics(
-                      liveRegion: true,
-                      label: 'Loading account information',
-                      child: MediaQuery.disableAnimationsOf(context)
-                          ? const Text('Loading…')
-                          : const LinearProgressIndicator(),
-                    ),
-                  if (loading) const SizedBox(height: 16),
-                  ...children,
-                ],
+              child: FillScroll(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                keyboardDismiss: true,
+                fill: items.lastIndexWhere((w) => w is _Panel),
+                children: items,
               ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class WorkstationSchedulePage extends StatefulWidget {
@@ -384,7 +387,7 @@ class _ScheduleState extends State<WorkstationSchedulePage> {
                 children: [
                   if (widget.freelancer) ...[
                     DropdownButtonFormField<String>(
-                      value: _category,
+                      initialValue: _category,
                       isExpanded: true,
                       itemHeight: null,
                       decoration: const InputDecoration(
@@ -887,7 +890,7 @@ class _PasswordState extends State<WorkstationPasswordPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Account security')),
+    appBar: AppBar(title: const Heading('Account security')),
     body: SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),

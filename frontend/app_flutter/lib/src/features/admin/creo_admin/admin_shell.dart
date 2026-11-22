@@ -21,8 +21,9 @@ class AdminShellScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appearance = CreoAppearanceScope.maybeOf(context);
-    if (appearance != null)
+    if (appearance != null) {
       lightMode.value = appearance.mode == ThemeMode.light;
+    }
     if (session?.current?.user != null) {
       final user = session!.current!.user;
       if (user.fullName.trim().isNotEmpty) {
@@ -288,11 +289,11 @@ class _ShellState extends State<Shell> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.wifi_off_outlined, size: 16, color: C.rose),
+                    Icon(Icons.error_outline, size: 16, color: C.rose),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Could not reach server – pull down to retry',
+                        '${currentAdminApi?.error ?? 'Could not load the latest data.'} Pull down to retry.',
                         style: inter(13, c: C.rose),
                       ),
                     ),
@@ -359,11 +360,12 @@ Future<void> _toggleTheme(BuildContext context) async {
   if (appearance == null) return toggleTheme();
   final saved = await appearance.toggle();
   lightMode.value = appearance.mode == ThemeMode.light;
-  if (!saved && context.mounted)
+  if (!saved && context.mounted) {
     toast(
       context,
       'Theme changed, but this device could not save the preference.',
     );
+  }
 }
 
 class Home extends StatelessWidget {

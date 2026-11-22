@@ -93,8 +93,9 @@ void main() {
       Uri? browser;
       final x = setup(
         (request) async {
-          if (request.method == 'GET')
+          if (request.method == 'GET') {
             return json(mobileAuthorization(request));
+          }
           exchanges++;
           expect(request.url.path, '/api/v1/auth/google/callback');
           expect(jsonDecode(request.body), {
@@ -140,8 +141,9 @@ void main() {
       () async {
         var writes = 0;
         final x = setup((request) async {
-          if (request.method == 'GET')
+          if (request.method == 'GET') {
             return json(mobileAuthorization(request));
+          }
           writes++;
           return json(sessionJson());
         });

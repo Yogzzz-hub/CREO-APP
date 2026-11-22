@@ -16,8 +16,9 @@ void main() {
       final store = MemorySessionStore()..value = saved();
       var writes = 0;
       final session = owner(store, (request) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse({...profile(), 'role': 'admin'});
+        }
         if (request.method == 'GET') return jsonResponse([]);
         writes++;
         expect(request.url.path, '/api/v1/admin/clients/client-a/offboard');
@@ -64,12 +65,14 @@ void main() {
     () async {
       final store = MemorySessionStore()..value = saved();
       final session = owner(store, (request) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse({...profile(), 'role': 'admin'});
-        if (request.method == 'GET')
+        }
+        if (request.method == 'GET') {
           return jsonResponse([
             {'id': 'lead-a', 'company_name': 'Example', 'status': 'new'},
           ]);
+        }
         expect(request.method, 'PATCH');
         expect(request.url.path, '/api/v1/bde/leads/lead-a');
         expect(jsonDecode(request.body), {'status': 'contacted'});
@@ -93,8 +96,9 @@ void main() {
       final store = MemorySessionStore()..value = saved();
       var writes = 0;
       final session = owner(store, (request) async {
-        if (request.url.path.endsWith('/auth/me'))
+        if (request.url.path.endsWith('/auth/me')) {
           return jsonResponse({...profile(), 'role': 'super_admin'});
+        }
         writes++;
         return jsonResponse({}, 500);
       });

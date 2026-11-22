@@ -32,13 +32,15 @@ Future<void> _setDraft(
 ) async {
   final id = d.serverId;
   final api = currentAdminApi;
-  if (id == null || api == null)
+  if (id == null || api == null) {
     return toast(context, 'This deliverable has no server record to update.');
-  if (to == Draft.published)
+  }
+  if (to == Draft.published) {
     return toast(
       context,
       'Publishing is managed from the web publishing calendar.',
     );
+  }
   if (d.state == Draft.published && to == Draft.approved) {
     final v = await formSheet(context, 'Withdraw ${d.title}', [
       const F('Reason', required: true, lines: 3),
@@ -48,11 +50,12 @@ Future<void> _setDraft(
       await api.withdrawDeliverable(id, v['Reason']!);
       if (context.mounted) toast(context, 'Deliverable withdrawn.');
     } catch (_) {
-      if (context.mounted)
+      if (context.mounted) {
         toast(
           context,
           'Could not confirm the withdrawal. Refresh the deliverable before retrying.',
         );
+      }
     }
     return;
   }
@@ -65,11 +68,12 @@ Future<void> _setDraft(
     ('revision_requested', Draft.review) => 'in_production',
     _ => null,
   };
-  if (target == null)
+  if (target == null) {
     return toast(
       context,
       'This server status cannot be changed with that action. Refresh the review list.',
     );
+  }
   try {
     await api.updateDeliverableStatus(
       id,
@@ -80,11 +84,12 @@ Future<void> _setDraft(
     );
     if (context.mounted) toast(context, msg);
   } catch (_) {
-    if (context.mounted)
+    if (context.mounted) {
       toast(
         context,
         'Could not confirm the review update. Refresh before retrying.',
       );
+    }
   }
 }
 
@@ -392,15 +397,17 @@ Future<void> newTask(
   final who = freelance
       ? [for (final p in peopleOf(Kind.freelancer)) p.name]
       : staffNames;
-  if (who.isEmpty)
+  if (who.isEmpty) {
     return toast(
       context,
       freelance
           ? 'Add a freelancer first (Team, Freelancers)'
           : 'Add a team member first (Team, Pods)',
     );
-  if (clients.isEmpty)
+  }
+  if (clients.isEmpty) {
     return toast(context, 'Add a client first (Team, Clients)');
+  }
   final v = await formSheet(
     context,
     freelance ? 'Assign a freelancer' : 'Create task',
@@ -424,11 +431,12 @@ Future<void> newTask(
   final client = clients.where((c) => c.name == v['Client']).firstOrNull;
   final assignee = people.where((p) => p.name == v['Assign to']).firstOrNull;
   if (api == null || client?.serverId == null || assignee?.serverId == null) {
-    if (context.mounted)
+    if (context.mounted) {
       toast(
         context,
         'Refresh the client and team rosters before creating this task.',
       );
+    }
     return;
   }
   final format = switch (v['Format']) {
@@ -460,17 +468,19 @@ Future<void> newTask(
     }
     if (context.mounted) toast(context, 'Task created on the server.');
   } catch (_) {
-    if (context.mounted)
+    if (context.mounted) {
       toast(
         context,
         'Could not confirm task creation. Refresh the task board before retrying.',
       );
+    }
   }
 }
 
 Future<void> _moveTask(BuildContext context, Task t, Stage to) async {
-  if (t.serverId == null || currentAdminApi == null)
+  if (t.serverId == null || currentAdminApi == null) {
     return toast(context, 'This task has no server record to update.');
+  }
   final status = switch (to) {
     Stage.todo => 'backlog',
     Stage.making => 'in_production',
@@ -480,11 +490,12 @@ Future<void> _moveTask(BuildContext context, Task t, Stage to) async {
   try {
     await currentAdminApi!.moveTask(t.serverId!, status);
   } catch (_) {
-    if (context.mounted)
+    if (context.mounted) {
       toast(
         context,
         'Could not confirm the task move. Refresh the task board before retrying.',
       );
+    }
   }
 }
 

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/auth_repository.dart';
+import '../../core/app_theme.dart';
 import '../../core/auth_session.dart';
+import '../../core/headings.dart';
 import '../workstation/workstation_data.dart';
 import '../workstation/workstation_account_pages.dart';
 import '../workstation/workstation_hub_pages.dart';
@@ -35,8 +37,9 @@ class _TeamLeadPageState extends State<TeamLeadPage> {
 
   void _changed() {
     if (widget.session.isCurrent(_sessionGeneration) &&
-        widget.session.phase == SessionPhase.authenticated)
+        widget.session.phase == SessionPhase.authenticated) {
       return;
+    }
     _epoch++;
     if (mounted) {
       setState(() {
@@ -330,8 +333,9 @@ class _TeamLeadPageState extends State<TeamLeadPage> {
                     ),
                   ],
                 )
-              : ListView(
+              : FillScroll(
                   padding: const EdgeInsets.all(20),
+                  fill: data != null ? null : -1,
                   children: [
                     if (_loading || _writing) const LinearProgressIndicator(),
                     if (_error != null)
@@ -345,107 +349,137 @@ class _TeamLeadPageState extends State<TeamLeadPage> {
                         ),
                       ),
                     if (data != null) ...[
-                      Text(
+                      Heading(
                         data.podName,
+                        icon: const [
+                          Icons.groups_outlined,
+                          Icons.rate_review_outlined,
+                          Icons.checklist_outlined,
+                          Icons.storefront_outlined,
+                        ][_tab.clamp(0, 3)],
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 16),
-                      if (_tab == 0) ...[
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                      // One container per tab that reaches the bottom edge.
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: context.creo.appLine),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Chip(
-                              label: Text(
-                                '${data.inQa.length} awaiting review',
-                              ),
-                            ),
-                            Chip(
-                              label: Text(
-                                '${data.inProduction.length} in production',
-                              ),
-                            ),
-                            Chip(label: Text('${data.clients.length} clients')),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Your pod',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        for (final member in data.members)
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.person_outline),
-                            title: Text(member.name),
-                            subtitle: Text(member.craft),
-                          ),
-                        for (final notice in data.notices)
-                          Card(
-                            child: ListTile(
-                              title: Text(notice.title),
-                              subtitle: Text(notice.message),
-                            ),
-                          ),
-                      ] else if (_tab == 3) ...[
-                        if (data.clients.isEmpty)
-                          const Text('No clients are assigned to this pod.'),
-                        for (final client in data.clients)
-                          Card(
-                            child: ExpansionTile(
-                              title: Text('${client['name'] ?? 'Client'}'),
-                              subtitle: Text(
-                                '${client['brand_summary'] ?? client['email'] ?? ''}',
-                              ),
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: SelectableText(
-                                    '${client['email'] ?? ''}\nInstagram: ${client['instagram'] ?? 'Not connected'}\nBrand DNA:\n${_brandDna(client['brand_dna'])}',
-                                  ),
-                                ),
-                                for (final quota
-                                    in (client['quota_usage'] as List? ??
-                                        const []))
-                                  ListTile(
-                                    title: Text('${quota['kind']}'),
-                                    subtitle: Text(
-                                      '${quota['used']} used · ${quota['remaining']} remaining of ${quota['quota']}',
+                            if (_tab == 0) ...[
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  Chip(
+                                    label: Text(
+                                      '${data.inQa.length} awaiting review',
                                     ),
                                   ),
-                              ],
-                            ),
-                          ),
-                      ] else ...[
-                        TextField(
-                          onChanged: (value) => setState(() => _query = value),
-                          decoration: const InputDecoration(
-                            labelText: 'Search tasks, clients or status',
-                            prefixIcon: Icon(Icons.search),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text('${rows.length} tasks'),
-                        if (rows.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Text(
-                              'No matching work. Refresh or change your search.',
-                            ),
-                          ),
-                        for (final task in rows)
-                          Card(
-                            child: ListTile(
-                              title: Text(task.title),
-                              subtitle: Text(
-                                '${task.client}\n${task.status.replaceAll('_', ' ')} · ${task.assigneeName ?? 'Unassigned'}',
+                                  Chip(
+                                    label: Text(
+                                      '${data.inProduction.length} in production',
+                                    ),
+                                  ),
+                                  Chip(
+                                    label: Text(
+                                      '${data.clients.length} clients',
+                                    ),
+                                  ),
+                                ],
                               ),
-                              isThreeLine: true,
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: _writing ? null : () => _details(task),
-                            ),
-                          ),
-                      ],
+                              const SizedBox(height: 16),
+                              Heading(
+                                'Your pod',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              for (final member in data.members)
+                                ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(Icons.person_outline),
+                                  title: Text(member.name),
+                                  subtitle: Text(member.craft),
+                                ),
+                              for (final notice in data.notices)
+                                Card(
+                                  child: ListTile(
+                                    title: Text(notice.title),
+                                    subtitle: Text(notice.message),
+                                  ),
+                                ),
+                            ] else if (_tab == 3) ...[
+                              if (data.clients.isEmpty)
+                                const Text(
+                                  'No clients are assigned to this pod.',
+                                ),
+                              for (final client in data.clients)
+                                Card(
+                                  child: ExpansionTile(
+                                    title: Text(
+                                      '${client['name'] ?? 'Client'}',
+                                    ),
+                                    subtitle: Text(
+                                      '${client['brand_summary'] ?? client['email'] ?? ''}',
+                                    ),
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: SelectableText(
+                                          '${client['email'] ?? ''}\nInstagram: ${client['instagram'] ?? 'Not connected'}\nBrand DNA:\n${_brandDna(client['brand_dna'])}',
+                                        ),
+                                      ),
+                                      for (final quota
+                                          in (client['quota_usage'] as List? ??
+                                              const []))
+                                        ListTile(
+                                          title: Text('${quota['kind']}'),
+                                          subtitle: Text(
+                                            '${quota['used']} used · ${quota['remaining']} remaining of ${quota['quota']}',
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                            ] else ...[
+                              TextField(
+                                onChanged: (value) =>
+                                    setState(() => _query = value),
+                                decoration: const InputDecoration(
+                                  labelText: 'Search tasks, clients or status',
+                                  prefixIcon: Icon(Icons.search),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text('${rows.length} tasks'),
+                              if (rows.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Text(
+                                    'No matching work. Refresh or change your search.',
+                                  ),
+                                ),
+                              for (final task in rows)
+                                Card(
+                                  child: ListTile(
+                                    title: Text(task.title),
+                                    subtitle: Text(
+                                      '${task.client}\n${task.status.replaceAll('_', ' ')} · ${task.assigneeName ?? 'Unassigned'}',
+                                    ),
+                                    isThreeLine: true,
+                                    trailing: const Icon(Icons.chevron_right),
+                                    onTap: _writing
+                                        ? null
+                                        : () => _details(task),
+                                  ),
+                                ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ] else if (!_loading && _error == null)
                       const Text('No pod data is available.'),
                   ],
@@ -542,8 +576,9 @@ class _TeamLeadPageState extends State<TeamLeadPage> {
 
 // Brand DNA arrives as nested JSON; show one readable line per field.
 String _brandDna(Object? value, [String indent = '']) {
-  if (value == null || (value is Map && value.isEmpty))
+  if (value == null || (value is Map && value.isEmpty)) {
     return '${indent}Not available';
+  }
   if (value is! Map) return '$indent$value';
   return [
     for (final e in value.entries)

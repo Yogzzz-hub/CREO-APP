@@ -95,28 +95,31 @@ void openTicket(BuildContext context, Ticket t) {
               try {
                 await currentAdminApi?.replyTicket(t.serverId!, v['Message']!);
               } catch (_) {
-                if (c.mounted)
+                if (c.mounted) {
                   toast(
                     c,
                     'Could not confirm the reply. Refresh this ticket before retrying.',
                   );
+                }
               }
             }
           }, filled: true),
         small(t.closed ? 'Reopen' : 'Close ticket', () async {
-          if (t.serverId == null)
+          if (t.serverId == null) {
             return toast(c, 'This ticket has no server record to update.');
+          }
           try {
             await currentAdminApi?.updateTicketStatus(
               t.serverId!,
               t.closed ? 'open' : 'closed',
             );
           } catch (_) {
-            if (c.mounted)
+            if (c.mounted) {
               toast(
                 c,
                 'Could not confirm the status change. Refresh the ticket before retrying.',
               );
+            }
           }
         }),
       ]),
@@ -318,7 +321,7 @@ class _SettingsBodyState extends State<_SettingsBody> {
             child: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: C.rose,
-                side: BorderSide(color: C.rose.withOpacity(0.5)),
+                side: BorderSide(color: C.rose.withValues(alpha: 0.5)),
                 minimumSize: const Size(48, 52),
               ),
               onPressed: () {
@@ -352,20 +355,22 @@ class _NotificationSettingsState extends State<_NotificationSettings> {
   bool saving = false;
   Future<void> setValue(String key, bool value) async {
     final api = currentAdminApi;
-    if (api == null)
+    if (api == null) {
       return toast(
         context,
         'Connect to the Creo account to change this setting.',
       );
+    }
     setState(() => saving = true);
     try {
       await api.saveSettings({key: value});
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         toast(
           context,
           'Could not confirm the save. Refresh settings before retrying.',
         );
+      }
     } finally {
       if (mounted) setState(() => saving = false);
     }

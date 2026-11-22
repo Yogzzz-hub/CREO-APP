@@ -33,15 +33,17 @@ class _PeopleState extends State<TeamLeadPeoplePage> {
     });
     try {
       await action();
-      if (mounted && widget.repository.session.isCurrent(_generation))
+      if (mounted && widget.repository.session.isCurrent(_generation)) {
         setState(() => _rows = _load());
+      }
     } catch (error) {
-      if (mounted && widget.repository.session.isCurrent(_generation))
+      if (mounted && widget.repository.session.isCurrent(_generation)) {
         setState(
           () => _error = error is HttpError
               ? error.message
               : 'The change could not be confirmed.',
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -153,8 +155,9 @@ class _PeopleState extends State<TeamLeadPeoplePage> {
         ],
       ),
     );
-    if (confirmed == true && mounted)
+    if (confirmed == true && mounted) {
       await _run(() => widget.repository.decideLeave(row, approve: approve));
+    }
   }
 
   @override
@@ -198,20 +201,23 @@ class _PeopleState extends State<TeamLeadPeoplePage> {
                   FutureBuilder<List<Map<String, dynamic>>>(
                     future: _rows,
                     builder: (context, snapshot) {
-                      if (snapshot.hasError)
+                      if (snapshot.hasError) {
                         return Text(
                           snapshot.error is HttpError
                               ? (snapshot.error as HttpError).message
                               : 'Records could not be loaded. Refresh to retry.',
                         );
-                      if (!snapshot.hasData)
+                      }
+                      if (!snapshot.hasData) {
                         return const Center(child: CircularProgressIndicator());
-                      if (snapshot.data!.isEmpty)
+                      }
+                      if (snapshot.data!.isEmpty) {
                         return Text(
                           widget.members
                               ? 'No members in this pod.'
                               : 'No leave requests in this pod.',
                         );
+                      }
                       return Column(
                         children: [
                           for (final row in snapshot.data!)

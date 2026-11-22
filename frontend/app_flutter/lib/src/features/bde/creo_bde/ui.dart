@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+import '../../../core/headings.dart';
 import 'data.dart';
 
 /// Light or dark theme. Dark is the default, like the website.
@@ -302,7 +303,7 @@ class Panel extends StatelessWidget {
 
 Widget title(String t) => Padding(
   padding: const EdgeInsets.only(top: 4),
-  child: Text(t, style: inter(28, w: FontWeight.w500)),
+  child: Heading(t, style: inter(28, w: FontWeight.w500)),
 );
 Widget sub(String t) => Padding(
   padding: const EdgeInsets.only(top: 4),
@@ -310,10 +311,7 @@ Widget sub(String t) => Padding(
 );
 Widget sec(String t) => Padding(
   padding: const EdgeInsets.only(top: 20, bottom: 0),
-  child: Text(
-    t,
-    style: inter(14, w: FontWeight.w500, c: C.mist),
-  ),
+  child: Heading(t, style: inter(14, w: FontWeight.w500, c: C.mist)),
 );
 
 /// A status is always an icon plus a word, never colour alone.
@@ -518,7 +516,7 @@ class TabPage extends StatelessWidget {
                     padding: EdgeInsets.symmetric(
                       horizontal: tabs.length > 4 ? 16 : 0,
                     ),
-                    child: Text(t),
+                    child: tabLabel(t),
                   ),
                 ),
             ],
@@ -543,9 +541,11 @@ class TabPage extends StatelessWidget {
   );
 }
 
-/// Scrollable body with the page gutter.
-Widget page(List<Widget> children) => ListView(
+/// Scrollable body with the page gutter. The last panel stretches down to
+/// the bottom edge on short pages, so no blank band is left under it.
+Widget page(List<Widget> children) => FillScroll(
   padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+  fill: children.lastIndexWhere((w) => w is Panel || w is Rows),
   children: children,
 );
 
@@ -672,7 +672,7 @@ class _FormSheetState extends State<_FormSheet> {
                   padding: const EdgeInsets.only(top: 12),
                   child: f.options != null
                       ? DropdownButtonFormField<String>(
-                          value: f.options!.contains(values[f.label])
+                          initialValue: f.options!.contains(values[f.label])
                               ? values[f.label]
                               : null,
                           items: [
@@ -765,10 +765,11 @@ class _FormSheetState extends State<_FormSheet> {
                 padding: const EdgeInsets.only(top: 20),
                 child: FilledButton(
                   onPressed: () {
-                    if (key.currentState!.validate())
+                    if (key.currentState!.validate()) {
                       Navigator.pop(context, {
                         for (final e in values.entries) e.key: e.value.trim(),
                       });
+                    }
                   },
                   child: Text(widget.action),
                 ),

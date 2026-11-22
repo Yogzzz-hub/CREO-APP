@@ -212,8 +212,9 @@ class AuthSession extends ChangeNotifier {
       }
       if (!await adopt(next, attempt)) _check(attempt);
     } finally {
-      if (_mandatoryPasswordGeneration == attempt)
+      if (_mandatoryPasswordGeneration == attempt) {
         _mandatoryPasswordGeneration = null;
+      }
     }
   }
 

@@ -52,13 +52,14 @@ class Profile extends StatelessWidget {
               F('Name', required: true, initial: me.name),
               F('Phone', initial: me.phone),
             ], 'Save');
-            if (v != null) {
+            if (v != null && context.mounted) {
               final api = currentAdminApi;
-              if (api == null)
+              if (api == null) {
                 return toast(
                   context,
                   'Connect to the Creo account to update your profile.',
                 );
+              }
               try {
                 await api.updateProfile(
                   name: v['Name']!.trim(),
@@ -66,11 +67,12 @@ class Profile extends StatelessWidget {
                 );
                 if (context.mounted) toast(context, 'Profile saved.');
               } catch (_) {
-                if (context.mounted)
+                if (context.mounted) {
                   toast(
                     context,
                     'Could not confirm the profile save. Reopen the profile and check before retrying.',
                   );
+                }
               }
             }
           },

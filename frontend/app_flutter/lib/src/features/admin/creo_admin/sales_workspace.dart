@@ -13,12 +13,13 @@ class AdminSalesRepository {
   void check() {
     if (!session.isCurrent(generation) ||
         session.phase != SessionPhase.authenticated ||
-        !{'admin', 'super_admin'}.contains(session.current?.user.role))
+        !{'admin', 'super_admin'}.contains(session.current?.user.role)) {
       throw const HttpError(
         status: 403,
         code: 'FORBIDDEN',
         message: 'This admin session has ended.',
       );
+    }
   }
 
   Future<List<Map<String, dynamic>>> load() async {
@@ -37,18 +38,20 @@ class AdminSalesRepository {
     Map<String, dynamic> body,
   ) async {
     check();
-    if (!pending.add(key))
+    if (!pending.add(key)) {
       throw const HttpError(
         status: 409,
         code: 'WRITE_UNCONFIRMED',
         message:
             'This request is pending or unconfirmed. Check its server state before retrying.',
       );
+    }
     try {
       final result = await session.request(method, path, body: body);
       check();
-      if (result['id'] is! String)
+      if (result['id'] is! String) {
         throw const FormatException('Unconfirmed response');
+      }
       pending.remove(key);
     } catch (error) {
       if (error is HttpError && error.status >= 400 && error.status < 500) {
@@ -65,7 +68,7 @@ class AdminSalesRepository {
   }
 
   Future<void> create(Map<String, dynamic> fields) => write(
-    'create:' + fields['email'].toString() + fields['company_name'].toString(),
+    'create:${fields['email']}${fields['company_name']}',
     'POST',
     '/api/v1/bde/leads',
     fields,
@@ -74,16 +77,17 @@ class AdminSalesRepository {
     check();
     if (!rows.any((item) => identical(item, row)) ||
         row['id'] is! String ||
-        !stages.contains(status))
+        !stages.contains(status)) {
       throw const HttpError(
         status: 403,
         code: 'STALE_LEAD',
         message: 'Refresh and choose a current lead.',
       );
+    }
     await write(
-      'lead:' + row['id'],
+      'lead:${row['id']}',
       'PATCH',
-      '/api/v1/bde/leads/' + Uri.encodeComponent(row['id']),
+      '/api/v1/bde/leads/${Uri.encodeComponent(row['id'])}',
       {'status': status},
     );
   }
@@ -208,12 +212,13 @@ class _SalesWorkspaceState extends State<AdminSalesWorkspace> {
                         if (dialog.mounted) Navigator.pop(dialog);
                         if (mounted) reload();
                       } catch (e) {
-                        if (dialog.mounted)
+                        if (dialog.mounted) {
                           update(
                             () => failure = e is HttpError
                                 ? e.message
                                 : 'The lead could not be confirmed.',
                           );
+                        }
                       } finally {
                         if (dialog.mounted) update(() => saving = false);
                       }
@@ -240,12 +245,13 @@ class _SalesWorkspaceState extends State<AdminSalesWorkspace> {
       await repo.update(row, status);
       if (mounted) reload();
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => error = e is HttpError
               ? e.message
               : 'The update could not be confirmed.',
         );
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -285,12 +291,14 @@ class _SalesWorkspaceState extends State<AdminSalesWorkspace> {
           FutureBuilder<List<Map<String, dynamic>>>(
             future: future,
             builder: (context, snapshot) {
-              if (snapshot.hasError)
+              if (snapshot.hasError) {
                 return const Text(
                   'The sales pipeline could not be loaded. Refresh to retry.',
                 );
-              if (!snapshot.hasData)
+              }
+              if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
+              }
               final rows = snapshot.data!
                   .where(
                     (row) => '${row['name']} ${row['company_name']}'

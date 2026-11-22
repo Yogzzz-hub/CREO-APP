@@ -137,9 +137,11 @@ void main() {
     await expectLater(
       repo.loginWithPassword('invalid', 'x'),
       throwsA(
-        code(
-          'VALIDATION_ERROR',
-        ).having((e) => e.message, 'message', 'email: Invalid email'),
+        code('VALIDATION_ERROR').having(
+          (e) => e.message,
+          'message',
+          'Email: enter a valid email address',
+        ),
       ),
     );
   });

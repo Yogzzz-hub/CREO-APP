@@ -86,8 +86,9 @@ class _OnboardingState extends State<ClientOnboardingPage> {
       );
       if (!opened) throw StateError('Browser unavailable');
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = 'Could not open checkout. Please try again.');
+      }
     }
   }
 
@@ -107,8 +108,9 @@ class _OnboardingState extends State<ClientOnboardingPage> {
         await _load();
       }
     } catch (error) {
-      if (mounted && widget.session.isCurrent(generation))
+      if (mounted && widget.session.isCurrent(generation)) {
         setState(() => _error = _message(error));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -399,7 +401,7 @@ class _OnboardingState extends State<ClientOnboardingPage> {
                         ? null
                         : () => _perform(() async {
                             await _repo.removeLogo();
-                            if (mounted)
+                            if (mounted) {
                               setState(() {
                                 final original = _original('a')
                                   ..remove('brand_logo_url')
@@ -409,6 +411,7 @@ class _OnboardingState extends State<ClientOnboardingPage> {
                                 _edits['a']?.remove('brand_logo_filename');
                                 _formVersion++;
                               });
+                            }
                             return null;
                           }),
                   ),

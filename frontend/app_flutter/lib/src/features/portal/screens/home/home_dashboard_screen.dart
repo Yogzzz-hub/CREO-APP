@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/headings.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/creo_card.dart';
 import '../../widgets/creo_animations.dart';
@@ -82,7 +83,7 @@ class HomeDashboardScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  Heading(
                     'Needs your decision',
                     style: TextStyle(
                       fontFamily: 'Inter',
@@ -165,7 +166,7 @@ class HomeDashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                Heading(
                   "This week's batch",
                   style: TextStyle(
                     fontFamily: 'Inter',
@@ -273,7 +274,7 @@ class HomeDashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                Heading(
                   'Your plan this cycle',
                   style: TextStyle(
                     fontFamily: 'Inter',
@@ -409,7 +410,7 @@ class HomeDashboardScreen extends StatelessWidget {
                   spacing: 12,
                   runSpacing: 8,
                   children: [
-                    Text(
+                    Heading(
                       'Coming up · Next 7 days',
                       style: TextStyle(
                         fontFamily: 'Inter',

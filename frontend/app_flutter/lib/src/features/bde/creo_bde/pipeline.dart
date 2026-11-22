@@ -60,12 +60,12 @@ class _PipelineTabState extends State<PipelineTab> {
             ]),
           ),
           if (inThis.isEmpty)
-            _EmptyLane(lane: lane, hasSearch: q.isNotEmpty, onAdd: () => newLead(context, lane: lane))
+            Panel(child: _EmptyLane(lane: lane, hasSearch: q.isNotEmpty, onAdd: () => newLead(context, lane: lane)))
           else
             for (final l in inThis) LeadCard(l),
         ] else ...[
           if (found.isEmpty)
-            _EmptyAll(hasLeads: leads.isNotEmpty, onAdd: () => newLead(context))
+            Panel(child: _EmptyAll(hasLeads: leads.isNotEmpty, onAdd: () => newLead(context)))
           else
             Rows([
               for (final l in found)
@@ -136,7 +136,7 @@ class _EmptyLane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (hasSearch) return empty('No match in ${lane.label}');
+    if (hasSearch) return Center(child: Text('No match in ${lane.label}', style: inter(15, c: C.mist)));
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 32),
       child: Column(children: [
@@ -160,7 +160,7 @@ class _EmptyAll extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (hasLeads) return empty('No match');
+    if (hasLeads) return Center(child: Text('No match', style: inter(15, c: C.mist)));
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 40),
       child: Column(children: [

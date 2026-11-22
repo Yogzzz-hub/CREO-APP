@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/auth_repository.dart';
+import '../../core/headings.dart';
 import 'team_lead_repository.dart';
 
 class TeamLeadCreateTaskPage extends StatefulWidget {
@@ -52,7 +53,7 @@ class _CreateState extends State<TeamLeadCreateTaskPage> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: Scaffold(
-      appBar: AppBar(title: const Text('New pod task')),
+      appBar: AppBar(title: const Heading('New pod task')),
       body: SafeArea(
         child: Form(
           key: _form,

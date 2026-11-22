@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_repository.dart';
 import '../../core/auth_session.dart';
+import '../../core/headings.dart';
 import 'workstation_data.dart';
 import 'workstation_files.dart';
 import 'workstation_task_repository.dart';
@@ -277,7 +278,7 @@ class _WorkstationTaskPageState extends State<WorkstationTaskPage> {
     final clients = {'All clients', ...entries.map((row) => row.task.client)};
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My tasks'),
+        title: const Heading('My tasks'),
         actions: [
           IconButton(
             tooltip: 'Refresh task board',
@@ -297,13 +298,14 @@ class _WorkstationTaskPageState extends State<WorkstationTaskPage> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
-          child: ListView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: FillScroll(
+            keyboardDismiss: true,
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
             children: [
-              Text(
+              Heading(
                 'Make your next delivery count.',
+                icon: Icons.checklist_outlined,
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 8),
@@ -406,74 +408,91 @@ class _WorkstationTaskPageState extends State<WorkstationTaskPage> {
                     ],
                   ),
                 ),
-              if (_data != null && rows.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Text(
-                    'No tasks match this view. Try another stage or clear your filters.',
-                  ),
+              // One list container that reaches the bottom edge.
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: context.creo.appLine),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-              for (final row in rows)
-                Card(
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          row.task.client,
-                          style: TextStyle(color: context.creo.accent),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_data != null && rows.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 32,
+                          horizontal: 8,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          row.task.title,
-                          style: Theme.of(context).textTheme.titleLarge,
+                        child: Text(
+                          'No tasks match this view. Try another stage or clear your filters.',
                         ),
-                        Text(
-                          '${row.task.format.replaceAll('_', ' ')} · ${row.task.status.replaceAll('_', ' ')}',
-                        ),
-                        if (row.task.due != null)
-                          Text(
-                            'Due ${row.task.due!.toLocal().toString().split(' ').first}',
-                          ),
-                        if (row.highPriority) const Text('High priority'),
-                        if (row.task.feedback?.isNotEmpty ?? false)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: Text(
-                              'Changes requested: ${row.task.feedback}',
-                            ),
-                          ),
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            TextButton(
-                              onPressed: () => _detail(row),
-                              child: const Text('View details'),
-                            ),
-                            if (row.column == 'Assigned')
-                              FilledButton(
-                                onPressed: _busyTask == null
-                                    ? () => _start(row)
-                                    : null,
-                                child: Text(
-                                  _busyTask == row.task.id
-                                      ? 'Starting…'
-                                      : 'Start work',
+                      ),
+                    for (final row in rows)
+                      Card(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                row.task.client,
+                                style: TextStyle(color: context.creo.accent),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                row.task.title,
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              Text(
+                                '${row.task.format.replaceAll('_', ' ')} · ${row.task.status.replaceAll('_', ' ')}',
+                              ),
+                              if (row.task.due != null)
+                                Text(
+                                  'Due ${row.task.due!.toLocal().toString().split(' ').first}',
                                 ),
+                              if (row.highPriority) const Text('High priority'),
+                              if (row.task.feedback?.isNotEmpty ?? false)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Text(
+                                    'Changes requested: ${row.task.feedback}',
+                                  ),
+                                ),
+                              Wrap(
+                                spacing: 8,
+                                children: [
+                                  TextButton(
+                                    onPressed: () => _detail(row),
+                                    child: const Text('View details'),
+                                  ),
+                                  if (row.column == 'Assigned')
+                                    FilledButton(
+                                      onPressed: _busyTask == null
+                                          ? () => _start(row)
+                                          : null,
+                                      child: Text(
+                                        _busyTask == row.task.id
+                                            ? 'Starting…'
+                                            : 'Start work',
+                                      ),
+                                    ),
+                                  if (row.column == 'Production')
+                                    FilledButton(
+                                      onPressed: () => _upload(row),
+                                      child: const Text('Upload & send to QA'),
+                                    ),
+                                ],
                               ),
-                            if (row.column == 'Production')
-                              FilledButton(
-                                onPressed: () => _upload(row),
-                                child: const Text('Upload & send to QA'),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                  ],
                 ),
+              ),
             ],
           ),
         ),
@@ -584,7 +603,7 @@ class _StaffUploadPageState extends State<_StaffUploadPage> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: Scaffold(
-      appBar: AppBar(title: const Text('Upload & send to QA')),
+      appBar: AppBar(title: const Heading('Upload & send to QA')),
       body: SafeArea(
         child: ListView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -811,7 +830,7 @@ class _StaffCreatePageState extends State<_StaffCreatePage> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: Scaffold(
-      appBar: AppBar(title: const Text('New task')),
+      appBar: AppBar(title: const Heading('New task')),
       body: SafeArea(
         child: Form(
           key: _form,
@@ -824,7 +843,7 @@ class _StaffCreatePageState extends State<_StaffCreatePage> {
               if (widget.clients.isEmpty)
                 const Text('No client is assigned to your pod yet.'),
               DropdownButtonFormField<String>(
-                value: _client,
+                initialValue: _client,
                 itemHeight: null,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Client'),
@@ -841,7 +860,7 @@ class _StaffCreatePageState extends State<_StaffCreatePage> {
                     : (value) => setState(() => _client = value),
               ),
               DropdownButtonFormField<String>(
-                value: _format,
+                initialValue: _format,
                 itemHeight: null,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Format'),
