@@ -739,21 +739,41 @@ class _FreelancerPageState extends State<FreelancerPage> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: FreelancerTaskGroup.values
-                            .map(
-                              (group) => ChoiceChip(
-                                label: Text(
-                                  '${_groupLabel(group)} (${_tasks.where((task) => task.group == group).length})',
-                                ),
-                                selected: _group == group,
-                                onSelected: (_) =>
-                                    setState(() => _group = group),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: FreelancerTaskGroup.values
+                                    .map(
+                                      (group) => Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 8,
+                                        ),
+                                        child: ChoiceChip(
+                                          label: Text(
+                                            '${_groupLabel(group)} (${_tasks.where((task) => task.group == group).length})',
+                                          ),
+                                          selected: _group == group,
+                                          onSelected: (_) =>
+                                              setState(() => _group = group),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
                               ),
-                            )
-                            .toList(),
+                            ),
+                          ),
+                          Tooltip(
+                            message: 'Swipe to see more statuses',
+                            child: Icon(
+                              Icons.chevron_right,
+                              size: 18,
+                              color: context.creo.appMist,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                       Row(

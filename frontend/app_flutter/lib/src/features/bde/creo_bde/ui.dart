@@ -294,7 +294,10 @@ class Panel extends StatelessWidget {
     padding: const EdgeInsets.only(top: 12),
     child: Material(
       color: C.surface,
-      borderRadius: BorderRadius.circular(16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: C.line.withValues(alpha: 0.65)),
+      ),
       clipBehavior: Clip.antiAlias,
       child: Padding(padding: padding, child: child),
     ),
@@ -303,15 +306,18 @@ class Panel extends StatelessWidget {
 
 Widget title(String t) => Padding(
   padding: const EdgeInsets.only(top: 4),
-  child: Heading(t, style: inter(28, w: FontWeight.w500)),
+  child: Heading(t, style: inter(28, w: FontWeight.w600)),
 );
 Widget sub(String t) => Padding(
   padding: const EdgeInsets.only(top: 4),
   child: Text(t, style: inter(16, c: C.mist)),
 );
 Widget sec(String t) => Padding(
-  padding: const EdgeInsets.only(top: 20, bottom: 0),
-  child: Heading(t, style: inter(14, w: FontWeight.w500, c: C.mist)),
+  padding: const EdgeInsets.only(top: 24, bottom: 4),
+  child: Heading(
+    t,
+    style: inter(15, w: FontWeight.w600, c: C.mist2),
+  ),
 );
 
 /// A status is always an icon plus a word, never colour alone.
@@ -374,8 +380,15 @@ ListTile tile(
   Widget? trail,
   VoidCallback? onTap,
 }) => ListTile(
-  title: Text(t),
-  subtitle: s == null ? null : Text(s),
+  contentPadding: const EdgeInsets.symmetric(vertical: 6),
+  minVerticalPadding: 12,
+  title: Text(t, style: inter(16, w: FontWeight.w600)),
+  subtitle: s == null
+      ? null
+      : Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: Text(s, style: inter(14, c: C.mist)),
+        ),
   leading: lead,
   trailing: trail,
   onTap: onTap,
@@ -499,7 +512,7 @@ class TabPage extends StatelessWidget {
           child: title(name),
         ),
         Container(
-          margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          margin: const EdgeInsets.fromLTRB(20, 12, 20, 4),
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: C.surface,
@@ -511,7 +524,7 @@ class TabPage extends StatelessWidget {
             tabs: [
               for (final t in tabs)
                 Tab(
-                  height: 40,
+                  height: 48,
                   child: Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: tabs.length > 4 ? 16 : 0,
@@ -521,15 +534,15 @@ class TabPage extends StatelessWidget {
                 ),
             ],
             indicator: BoxDecoration(
-              color: C.raised,
+              color: C.accent,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: C.line, width: 1),
+              border: Border.all(color: C.accent, width: 1),
             ),
             indicatorSize: TabBarIndicatorSize.tab,
             dividerColor: Colors.transparent,
-            labelColor: C.text,
+            labelColor: C.onAccent,
             unselectedLabelColor: C.mist,
-            labelStyle: inter(14, w: FontWeight.w500),
+            labelStyle: inter(14, w: FontWeight.w600),
             unselectedLabelStyle: inter(14),
             labelPadding: EdgeInsets.zero,
             splashBorderRadius: BorderRadius.circular(8),
@@ -583,10 +596,25 @@ class SearchBox extends StatelessWidget {
       style: inter(16),
       decoration: InputDecoration(
         hintText: hint,
+        hintStyle: inter(15, c: C.mist),
+        filled: true,
+        fillColor: C.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 48,
+          minHeight: 48,
+        ),
         prefixIcon: Icon(Icons.search, color: C.mist),
-        border: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(10)),
-          borderSide: BorderSide.none,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: C.line),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: C.accent, width: 1.5),
         ),
       ),
     ),

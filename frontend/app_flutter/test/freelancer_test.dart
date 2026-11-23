@@ -259,7 +259,7 @@ void main() {
       await tester.scrollUntilVisible(
         find.text('Assignment a'),
         200,
-        scrollable: find.byType(Scrollable).first,
+        scrollable: find.byWidgetPredicate((widget) => widget is Scrollable && widget.axisDirection == AxisDirection.down).first,
       );
       expect(find.text('Assignment a'), findsOneWidget);
       expect(find.text('Milestone fee not provided'), findsOneWidget);
@@ -301,7 +301,7 @@ void main() {
       await tester.scrollUntilVisible(
         find.text('Submit content'),
         200,
-        scrollable: find.byType(Scrollable).first,
+        scrollable: find.byWidgetPredicate((widget) => widget is Scrollable && widget.axisDirection == AxisDirection.down).first,
       );
       await tester.ensureVisible(find.text('Submit content'));
       await tester.pumpAndSettle();

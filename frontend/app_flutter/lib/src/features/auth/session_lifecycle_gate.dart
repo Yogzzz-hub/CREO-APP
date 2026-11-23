@@ -132,93 +132,124 @@ class _SessionLifecycleGateState extends State<SessionLifecycleGate>
       }
       return Scaffold(
         body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (CreoAppearanceScope.maybeOf(context) != null)
-                      const Align(
-                        alignment: Alignment.centerRight,
-                        child: CreoThemeToggle(showTooltip: false),
-                      ),
-                    Text(
-                      'creo.',
-                      style: Theme.of(context).textTheme.headlineLarge,
-                    ),
-                    const SizedBox(height: 32),
-                    if (busy) ...[
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: MediaQuery.disableAnimationsOf(context)
-                            ? const Icon(
-                                Icons.hourglass_top,
-                                semanticLabel: 'In progress',
-                              )
-                            : const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 88),
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 440),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (busy) ...[
+                            Align(
+                              alignment: Alignment.center,
+                              child: MediaQuery.disableAnimationsOf(context)
+                                  ? const Icon(
+                                      Icons.hourglass_top,
+                                      semanticLabel: 'In progress',
+                                    )
+                                  : const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(),
+                                    ),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                          Semantics(
+                            liveRegion: true,
+                            header: true,
+                            child: Text(
+                              textAlign: TextAlign.center,
+                              clearing
+                                  ? 'Signing out on this device'
+                                  : busy
+                                  ? 'Checking your session'
+                                  : ready
+                                  ? (restricted
+                                        ? 'Password update required'
+                                        : 'You’re signed in')
+                                  : 'Your session needs attention',
+                              style: Theme.of(context).textTheme.headlineLarge,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            textAlign: TextAlign.center,
+                            busy
+                                ? 'Please wait. Your account is being checked safely.'
+                                : ready
+                                ? DestinationIntent.forUser(
+                                    session.current!.user,
+                                  ).blocker!
+                                : session.issue?.code == 'API_NOT_CONFIGURED'
+                                ? 'Sign-in is not available in this build yet.'
+                                : session.issue?.message ??
+                                      'Unable to restore your session. Your saved credentials have not been discarded.',
+                          ),
+                          if (!busy) ...[
+                            const SizedBox(height: 24),
+                            if (!ready)
+                              OutlinedButton(
+                                onPressed: () => clearFailed
+                                    ? session.logout(notifyServer: false)
+                                    : session.restore(),
+                                child: Text(
+                                  clearFailed ? 'Retry sign-out' : 'Retry',
+                                ),
                               ),
+                            const SizedBox(height: 12),
+                            OutlinedButton(
+                              onPressed: () =>
+                                  session.logout(notifyServer: ready),
+                              child: Text(
+                                ready
+                                    ? 'Sign out on this device'
+                                    : 'Clear saved session and sign in',
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                      const SizedBox(height: 24),
-                    ],
-                    Semantics(
-                      liveRegion: true,
-                      header: true,
-                      child: Text(
-                        clearing
-                            ? 'Signing out on this device'
-                            : busy
-                            ? 'Checking your session'
-                            : ready
-                            ? (restricted
-                                  ? 'Password update required'
-                                  : 'You’re signed in')
-                            : 'Your session needs attention',
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 16,
+                left: 24,
+                right: 24,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            const TextSpan(text: 'creo'),
+                            TextSpan(
+                              text: '.',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        semanticsLabel: 'Creo',
                         style: Theme.of(context).textTheme.headlineLarge,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      busy
-                          ? 'Please wait. Your account is being checked safely.'
-                          : ready
-                          ? DestinationIntent.forUser(
-                              session.current!.user,
-                            ).blocker!
-                          : session.issue?.code == 'API_NOT_CONFIGURED'
-                          ? 'Sign-in is not available in this build yet.'
-                          : session.issue?.message ??
-                                'Unable to restore your session. Your saved credentials have not been discarded.',
-                    ),
-                    if (!busy) ...[
-                      const SizedBox(height: 24),
-                      if (!ready)
-                        OutlinedButton(
-                          onPressed: () => clearFailed
-                              ? session.logout(notifyServer: false)
-                              : session.restore(),
-                          child: Text(clearFailed ? 'Retry sign-out' : 'Retry'),
-                        ),
-                      const SizedBox(height: 12),
-                      OutlinedButton(
-                        onPressed: () => session.logout(notifyServer: ready),
-                        child: Text(
-                          ready
-                              ? 'Sign out on this device'
-                              : 'Clear saved session and sign in',
-                        ),
-                      ),
-                    ],
+                    if (CreoAppearanceScope.maybeOf(context) != null)
+                      const CreoThemeToggle(showTooltip: false),
                   ],
                 ),
               ),
-            ),
+            ],
           ),
         ),
       );
